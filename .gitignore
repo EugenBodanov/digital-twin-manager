@@ -1,4 +1,4 @@
-config_credentials.json
+config*.json
 iot_devices_auth/
 
 __pycache__/
