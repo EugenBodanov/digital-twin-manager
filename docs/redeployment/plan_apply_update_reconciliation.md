@@ -154,6 +154,37 @@ S3 conditional writes or DynamoDB lock table for locking
 SSM Parameter Store for small state fragments
 ```
 
+### Implemented MVP: Last-Applied Config Snapshots
+
+The current deployment flow stores the last successfully deployed desired
+configuration as local state after `deploy` finishes successfully.
+
+```text
+.digital-twin-manager-state/
+  metadata.json
+  configs/
+    config.json
+    config_iot_devices.json
+    config_events.json
+    config_hierarchy.json
+```
+
+Existing files at these paths are overwritten on every successful `deploy`.
+The same overwrite behavior is available through the manual `init-state`
+initializer command, which can bootstrap state for an already deployed
+environment before future reconciliation work is added.
+
+The `plan` command initializes the last-applied state in memory from these
+files before planning. It does not overwrite the saved state, because the saved
+snapshot is the previous-state baseline for desired-vs-previous comparisons.
+If an actual AWS resource differs from this previous-state baseline, `plan`
+reports drift and does not calculate an update from that resource because there
+is no safe last-applied reference.
+
+`config_credentials.json` is intentionally excluded because it contains local
+AWS secrets. `config_providers.json` is excluded because the current application
+does not read it during deployment.
+
 ### Implementation Plan
 
 1. Add `plan` and `apply/update` commands.

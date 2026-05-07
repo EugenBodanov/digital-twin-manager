@@ -4,6 +4,7 @@ import deployers.aws.iot.all
 import deployers.aws.hierarchy.all
 import deployers.aws.event_actions.all
 import deployers.aws.init_values.all
+import redeployment_state
 import sanity_checker
 
 def help_menu():
@@ -12,6 +13,7 @@ def help_menu():
       deploy                       - Deploys core and IoT services and resources.
       destroy                      - Destroys core and IoT services and resources.
       info                         - Lists all the deployed resources.
+      init-state                   - Copies current deploy config files into redeployment state.
       help                         - Show this help menu.
       exit                         - Exit the program.
   """)
@@ -58,6 +60,8 @@ def main():
         deployers.aws.hierarchy.all.AllDeployer().deploy()
         deployers.aws.event_actions.all.AllDeployer().deploy()
         deployers.aws.init_values.all.AllDeployer().deploy()
+        redeployment_state.save_last_applied_config_state()
+        print(f"Redeployment state configs saved to: {redeployment_state.state_config_dir_path()}")
 
       elif command == "destroy":
         deployers.aws.init_values.all.AllDeployer().destroy()
@@ -72,6 +76,11 @@ def main():
         deployers.aws.hierarchy.all.AllDeployer().info()
         deployers.aws.event_actions.all.AllDeployer().info()
         deployers.aws.init_values.all.AllDeployer().info()
+
+      elif command == "init-state":
+        sanity_checker.check()
+        redeployment_state.save_last_applied_config_state()
+        print(f"Redeployment state configs saved to: {redeployment_state.state_config_dir_path()}")
 
       elif command == "help":
         help_menu()
