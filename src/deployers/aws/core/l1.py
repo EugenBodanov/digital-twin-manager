@@ -7,6 +7,11 @@ class L1Deployer(Deployer):
   def log(self, message):
     print(message)
 
+  def plan(self):
+    DispatcherIamRoleDeployer().plan()
+    DispatcherLambdaFunctionDeployer().plan()
+    DispatcherIotRuleDeployer().plan()
+
   def deploy(self):
     DispatcherIamRoleDeployer().deploy()
     DispatcherLambdaFunctionDeployer().deploy()

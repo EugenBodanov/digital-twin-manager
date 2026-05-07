@@ -13,6 +13,7 @@ def help_menu():
       deploy                       - Deploys core and IoT services and resources.
       destroy                      - Destroys core and IoT services and resources.
       info                         - Lists all the deployed resources.
+      plan                         - Plans core resource changes without modifying AWS.
       init-state                   - Copies current deploy config files into redeployment state.
       help                         - Show this help menu.
       exit                         - Exit the program.
@@ -76,6 +77,11 @@ def main():
         deployers.aws.hierarchy.all.AllDeployer().info()
         deployers.aws.event_actions.all.AllDeployer().info()
         deployers.aws.init_values.all.AllDeployer().info()
+
+      elif command == "plan":
+        sanity_checker.check()
+        redeployment_state.initialize_last_applied_config_state()
+        deployers.aws.core.all.AllDeployer().plan()
 
       elif command == "init-state":
         sanity_checker.check()

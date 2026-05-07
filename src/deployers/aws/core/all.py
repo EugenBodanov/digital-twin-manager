@@ -11,6 +11,9 @@ class AllDeployer(Deployer):
   def log(self, message):
     print(message)
 
+  def plan(self):
+    L1Deployer().plan()
+
   def deploy(self):
     L1Deployer().deploy()
     L2Deployer().deploy()
