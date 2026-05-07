@@ -51,6 +51,7 @@ Used for core Lambdas, per-device processor Lambdas, optional internal event act
 ```text
 lambda:CreateFunction
 lambda:GetFunction
+lambda:GetPolicy
 lambda:DeleteFunction
 lambda:AddPermission
 lambda:RemovePermission
@@ -263,6 +264,7 @@ The following policy is intended for the IAM principal whose access keys are sto
       "Action": [
         "lambda:CreateFunction",
         "lambda:GetFunction",
+        "lambda:GetPolicy",
         "lambda:DeleteFunction",
         "lambda:AddPermission",
         "lambda:RemovePermission",
