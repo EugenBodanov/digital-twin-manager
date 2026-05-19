@@ -27,7 +27,7 @@ def lambda_handler(event, context):
 
         iot_data_client.publish(
             topic=topic,
-            qos=1,
+            qos=1, # quality of service - deliver at least once
             payload=json.dumps(message)
         )
 

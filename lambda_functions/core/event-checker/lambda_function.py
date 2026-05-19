@@ -12,7 +12,6 @@ twinmaker_client = boto3.client("iottwinmaker")
 lambda_client = boto3.client("lambda")
 sf_client = boto3.client("stepfunctions")
 
-from datetime import datetime, timezone, timedelta
 def fetch_value(entity_id, component_name, property_name):
     from datetime import datetime, timezone, timedelta
     end_time = datetime.now(timezone.utc)
