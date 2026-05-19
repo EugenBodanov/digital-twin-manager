@@ -1,13 +1,50 @@
 from deployers.base import Deployer
+from deployers.aws.core.plan_actions import plan_action
 import json
 import os
 import globals
+import deployment_state
 import util
 from botocore.exceptions import ClientError
 
 class EventCheckerLambdaFunctionDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
+
+  def plan(self):
+    previous_function_name = deployment_state.last_applied_event_checker_lambda_function_name()
+    desired_function_name = globals.event_checker_lambda_function_name()
+    previous_role_name = deployment_state.last_applied_event_checker_iam_role_name()
+    desired_role_name = globals.event_checker_iam_role_name()
+    previous_lambda_chain_name = deployment_state.last_applied_lambda_chain_step_function_name()
+    desired_lambda_chain_name = globals.lambda_chain_step_function_name()
+    previous_event_feedback_function_name = deployment_state.last_applied_event_feedback_lambda_function_name()
+    desired_event_feedback_function_name = globals.event_feedback_lambda_function_name()
+
+    if (
+      previous_function_name == desired_function_name
+      and previous_role_name == desired_role_name
+      and previous_lambda_chain_name == desired_lambda_chain_name
+      and previous_event_feedback_function_name == desired_event_feedback_function_name
+    ):
+      self.log(f"Event-Checker Lambda function {desired_function_name} is up to date.")
+      return [
+        plan_action(desired_function_name, "lambda_function")
+      ]
+
+    if previous_function_name != desired_function_name:
+      self.log(f"Event-Checker Lambda function name changed from {previous_function_name} to {desired_function_name}.")
+    if previous_role_name != desired_role_name:
+      self.log(f"Event-Checker IAM role name changed from {previous_role_name} to {desired_role_name}.")
+    if previous_lambda_chain_name != desired_lambda_chain_name:
+      self.log(f"Lambda Chain Step Function name changed from {previous_lambda_chain_name} to {desired_lambda_chain_name}.")
+    if previous_event_feedback_function_name != desired_event_feedback_function_name:
+      self.log(f"Event-Feedback Lambda function name changed from {previous_event_feedback_function_name} to {desired_event_feedback_function_name}.")
+
+    return [
+      plan_action(previous_function_name, "lambda_function", action="DESTROY"),
+      plan_action(desired_function_name, "lambda_function", action="DEPLOY"),
+    ]
 
   def deploy(self):
     function_name = globals.event_checker_lambda_function_name()

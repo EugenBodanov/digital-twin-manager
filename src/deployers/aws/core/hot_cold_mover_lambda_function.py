@@ -1,3 +1,5 @@
+import deployment_state
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import json
 import os
@@ -8,6 +10,28 @@ from botocore.exceptions import ClientError
 class HotColdMoverLambdaFunctionDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
+
+  def plan(self):
+    previous_function_name = deployment_state.last_applied_hot_cold_mover_lambda_function_name()
+    desired_function_name = globals.hot_cold_mover_lambda_function_name()
+    previous_role_name = deployment_state.last_applied_hot_cold_mover_iam_role_name()
+    desired_role_name = globals.hot_cold_mover_iam_role_name()
+
+    if previous_function_name == desired_function_name and previous_role_name == desired_role_name:
+      self.log(f"Hot to Cold Mover Lambda function {desired_function_name} is up to date.")
+      return [
+        plan_action(desired_function_name, "lambda_function")
+      ]
+
+    if previous_function_name != desired_function_name:
+      self.log(f"Hot to Cold Mover Lambda function name changed from {previous_function_name} to {desired_function_name}.")
+    if previous_role_name != desired_role_name:
+      self.log(f"Hot to Cold Mover IAM role name changed from {previous_role_name} to {desired_role_name}.")
+
+    return [
+      plan_action(previous_function_name, "lambda_function", action="DESTROY"),
+      plan_action(desired_function_name, "lambda_function", action="DEPLOY"),
+    ]
 
   def deploy(self):
     function_name = globals.hot_cold_mover_lambda_function_name()

@@ -12,7 +12,15 @@ class AllDeployer(Deployer):
     print(message)
 
   def plan(self):
-    L1Deployer().plan()
+    return [
+      L1Deployer().plan(),
+      L2Deployer().plan(),
+      L3HotDeployer().plan(),
+      L3ColdDeployer().plan(),
+      L3ArchiveDeployer().plan(),
+      L4Deployer().plan(),
+      L5Deployer().plan(),
+    ]
 
   def deploy(self):
     L1Deployer().deploy()

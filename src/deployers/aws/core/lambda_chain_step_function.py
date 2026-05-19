@@ -1,13 +1,40 @@
 from deployers.base import Deployer
+from deployers.aws.core.plan_actions import plan_action
 import json
 import time
 import globals
+import deployment_state
 import util
 from botocore.exceptions import ClientError
 
 class LambdaChainStepFunctionDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
+
+  def plan(self):
+    previous_step_function_name = deployment_state.last_applied_lambda_chain_step_function_name()
+    desired_step_function_name = globals.lambda_chain_step_function_name()
+    previous_role_name = deployment_state.last_applied_lambda_chain_iam_role_name()
+    desired_role_name = globals.lambda_chain_iam_role_name()
+
+    if (
+      previous_step_function_name == desired_step_function_name
+      and previous_role_name == desired_role_name
+    ):
+      self.log(f"Lambda-Chain Step Function {desired_step_function_name} is up to date.")
+      return [
+        plan_action(desired_step_function_name, "step_function")
+      ]
+
+    if previous_step_function_name != desired_step_function_name:
+      self.log(f"Lambda-Chain Step Function name changed from {previous_step_function_name} to {desired_step_function_name}.")
+    if previous_role_name != desired_role_name:
+      self.log(f"Lambda-Chain IAM role name changed from {previous_role_name} to {desired_role_name}.")
+
+    return [
+      plan_action(previous_step_function_name, "step_function", action="DESTROY"),
+      plan_action(desired_step_function_name, "step_function", action="DEPLOY"),
+    ]
 
   def deploy(self):
     sf_name = globals.lambda_chain_step_function_name()

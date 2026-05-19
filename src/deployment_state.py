@@ -59,6 +59,13 @@ def last_applied_digital_twin_info():
   }
 
 
+def last_applied_aws_region():
+  if not last_applied_state_metadata:
+    initialize_last_applied_config_state()
+
+  return last_applied_state_metadata["awsRegion"]
+
+
 def last_applied_dispatcher_iam_role_name():
   return last_applied_digital_twin_name() + "-dispatcher"
 
@@ -74,6 +81,96 @@ def last_applied_dispatcher_iot_rule_name():
 
 def last_applied_dispatcher_iot_rule_topic():
   return last_applied_digital_twin_name() + "/iot-data"
+
+def last_applied_persister_iam_role_name():
+  return last_applied_digital_twin_name() + "-persister"
+
+def last_applied_persister_lambda_function_name():
+  return last_applied_digital_twin_name() + "-persister"
+
+def last_applied_hot_dynamodb_table_name():
+  return last_applied_digital_twin_name() + "-hot-iot-data"
+
+def last_applied_event_feedback_iam_role_name():
+  return last_applied_digital_twin_name() + "-event-feedback"
+
+
+def last_applied_event_feedback_lambda_function_name():
+  return last_applied_digital_twin_name() + "-event-feedback"
+
+
+def last_applied_event_checker_iam_role_name():
+  return last_applied_digital_twin_name() + "-event-checker"
+
+
+def last_applied_event_checker_lambda_function_name():
+  return last_applied_digital_twin_name() + "-event-checker"
+
+
+def last_applied_lambda_chain_iam_role_name():
+  return last_applied_digital_twin_name() + "-lambda-chain"
+
+
+def last_applied_lambda_chain_step_function_name():
+  return last_applied_digital_twin_name() + "-lambda-chain"
+
+
+def last_applied_event_registry_register_iam_role_name():
+  return last_applied_digital_twin_name() + "-event-registry-register"
+
+
+def last_applied_event_registry_register_lambda_function_name():
+  return last_applied_digital_twin_name() + "-event-registry-register"
+
+def last_applied_hot_cold_mover_iam_role_name():
+  return last_applied_digital_twin_name() + "-hot-to-cold-mover"
+
+def last_applied_hot_cold_mover_lambda_function_name():
+  return last_applied_digital_twin_name() + "-hot-to-cold-mover"
+
+def last_applied_hot_cold_mover_event_rule_name():
+  return last_applied_digital_twin_name() + "-hot-to-cold-mover"
+
+def last_applied_hot_reader_iam_role_name():
+  return last_applied_digital_twin_name() + "-hot-reader"
+
+def last_applied_hot_reader_lambda_function_name():
+    return last_applied_digital_twin_name() + "-hot-reader"
+
+def last_applied_cold_s3_bucket_name():
+    return (last_applied_digital_twin_name() + "-cold-iot-data").lower()
+
+def last_applied_cold_archive_mover_iam_role_name():
+  return last_applied_digital_twin_name() + "-cold-to-archive-mover"
+
+def last_applied_cold_archive_mover_lambda_function_name():
+  return last_applied_digital_twin_name() + "-cold-to-archive-mover"
+
+def last_applied_cold_archive_mover_event_rule_name():
+  return last_applied_digital_twin_name() + "-cold-to-archive-mover"
+
+def last_applied_archive_s3_bucket_name():
+  return (last_applied_digital_twin_name() + "-archive-iot-data").lower()
+
+
+def last_applied_twinmaker_s3_bucket_name():
+  return (last_applied_digital_twin_name() + "-twinmaker").lower()
+
+
+def last_applied_twinmaker_iam_role_name():
+  return last_applied_digital_twin_name() + "-twinmaker"
+
+
+def last_applied_twinmaker_workspace_name():
+  return last_applied_digital_twin_name() + "-twinmaker"
+
+
+def last_applied_grafana_workspace_name():
+  return last_applied_digital_twin_name() + "-grafana"
+
+
+def last_applied_grafana_iam_role_name():
+  return last_applied_digital_twin_name() + "-grafana"
 
 
 def _read_json(path):

@@ -4,7 +4,7 @@ from deployers.aws.core.plan_actions import plan_action
 import json
 import time
 import globals
-import redeployment_state
+import deployment_state
 import util
 from botocore.exceptions import ClientError
 
@@ -73,131 +73,21 @@ class DispatcherIamRoleDeployer(Deployer):
     return drift_fields
 
   def plan(self):
-
-    previous_role_name = redeployment_state.last_applied_dispatcher_iam_role_name()
+    previous_role_name = deployment_state.last_applied_dispatcher_iam_role_name()
     desired_role_name = globals.dispatcher_iam_role_name()
-    desired_dt_name = globals.config["digital_twin_name"]
 
-    actions = plan_action(
-      "dispatcher_iam_role",
-      "iam_role",
-      previous_role_name=previous_role_name,
-      desired_role_name=desired_role_name,
-    )
+    if previous_role_name == desired_role_name:
+      self.log(f"Dispatcher IAM role {desired_role_name} is up to date.")
+      return [
+        plan_action(desired_role_name, "iam")
+      ]
 
-    if not previous_role_name:
-      if self._role_exists(desired_role_name):
-        self.log(
-          "STATE_SYNC_REQUIRED Desired Dispatcher IAM Role already exists: "
-          f"{desired_role_name}; delete it if unmanaged"
-        )
+    self.log(f"Dispatcher IAM role name changed from {previous_role_name} to {desired_role_name}.")
 
-        actions.update({
-          "action": "CREATE",
-          "blocked": True,
-          "blockers": [
-            f"Desired IAM role already exists: {desired_role_name}"
-          ],
-          "state_sync_required": True,
-        })
-        return actions
-
-      self.log(f"CREATE Dispatcher IAM Role: {desired_role_name}")
-
-      actions.update({
-        "action": "CREATE",
-      })
-      return actions
-
-    drift_fields = self._drift_fields(previous_role_name)
-
-    if drift_fields:
-      if drift_fields == ["missing"]:
-        if previous_role_name != desired_role_name:
-          previous_dt_name = redeployment_state.last_applied_digital_twin_name()
-
-          self.log(
-            "CREATE Dispatcher IAM Role recovery: "
-            f"{previous_role_name} -> {desired_role_name} "
-            f"(digital_twin_name changed: {previous_dt_name} -> {desired_dt_name}); "
-            "requires allow_recovery"
-          )
-        else:
-          self.log(
-            "CREATE Dispatcher IAM Role recovery: "
-            f"{previous_role_name}; requires allow_recovery"
-          )
-
-        actions.update({
-          "action": "CREATE",
-          "required_flags": ["allow_recovery"],
-          "drift_fields": drift_fields,
-        })
-
-        if (
-          previous_role_name != desired_role_name
-          and self._role_exists(desired_role_name)
-        ):
-          self.log(
-            "STATE_SYNC_REQUIRED Desired Dispatcher IAM Role already exists: "
-            f"{desired_role_name}; delete it if unmanaged"
-          )
-
-          actions["blocked"] = True
-          actions["blockers"].append(
-            f"Desired IAM role already exists: {desired_role_name}"
-          )
-          actions["state_sync_required"] = True
-
-        return actions
-
-      self.log(
-        "DRIFT_UNKNOWN Dispatcher IAM Role differs from state: "
-        f"{previous_role_name}; fields={drift_fields}; no safe update reference"
-      )
-      actions.update({
-        "action": "DRIFT_UNKNOWN",
-        "blocked": True,
-        "drift_fields": drift_fields,
-        "blockers": ["Actual IAM role differs from last-applied state"],
-      })
-      return actions
-
-    # IAM role names are immutable.
-    if previous_role_name != desired_role_name:
-      previous_dt_name = redeployment_state.last_applied_digital_twin_name()
-
-      self.log(
-        "REPLACE_REQUIRED Dispatcher IAM Role: "
-        f"{previous_role_name} -> {desired_role_name} "
-        f"(digital_twin_name changed: {previous_dt_name} -> {desired_dt_name})"
-      )
-
-      actions.update({
-        "action": "REPLACE_REQUIRED",
-        "required_flags": ["allow_replacement"],
-      })
-
-
-      # Replacement cannot create the desired role if that role already exists
-      if self._role_exists(desired_role_name):
-        self.log(
-          "STATE_SYNC_REQUIRED Desired Dispatcher IAM Role already exists: "
-          f"{desired_role_name}; delete it if unmanaged"
-        )
-
-        actions["blocked"] = True
-        actions["blockers"].append(
-          f"Desired IAM role already exists: {desired_role_name}"
-        )
-        actions["state_sync_required"] = True
-
-
-      return actions
-
-    self.log(f"NO_CHANGE Dispatcher IAM Role: {desired_role_name}")
-
-    return actions
+    return [
+      plan_action(previous_role_name, "iam", action="DESTROY"),
+      plan_action(desired_role_name, "iam", action="DEPLOY"),
+    ]
 
 
   def deploy(self):

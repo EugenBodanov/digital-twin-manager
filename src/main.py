@@ -4,7 +4,7 @@ import deployers.aws.iot.all
 import deployers.aws.hierarchy.all
 import deployers.aws.event_actions.all
 import deployers.aws.init_values.all
-import redeployment_state
+import deployment_state
 import sanity_checker
 
 def help_menu():
@@ -37,6 +37,7 @@ def main():
     globals.initialize_aws_logs_client()
     globals.initialize_aws_sf_client()
     globals.initialize_aws_iot_data_client()
+    deployment_state.initialize_last_applied_config_state()
 
     print("Welcome to the Digital Twin Manager. Type 'help' for commands.")
 
@@ -61,8 +62,8 @@ def main():
         deployers.aws.hierarchy.all.AllDeployer().deploy()
         deployers.aws.event_actions.all.AllDeployer().deploy()
         deployers.aws.init_values.all.AllDeployer().deploy()
-        redeployment_state.save_last_applied_config_state()
-        print(f"Redeployment state configs saved to: {redeployment_state.state_config_dir_path()}")
+        deployment_state.save_last_applied_config_state()
+        print(f"State configs saved to: {deployment_state.state_config_dir_path()}")
 
       elif command == "destroy":
         deployers.aws.init_values.all.AllDeployer().destroy()
@@ -80,13 +81,12 @@ def main():
 
       elif command == "plan":
         sanity_checker.check()
-        redeployment_state.initialize_last_applied_config_state()
         deployers.aws.core.all.AllDeployer().plan()
 
       elif command == "init-state":
         sanity_checker.check()
-        redeployment_state.save_last_applied_config_state()
-        print(f"Redeployment state configs saved to: {redeployment_state.state_config_dir_path()}")
+        deployment_state.save_last_applied_config_state()
+        print(f"Redeployment state configs saved to: {deployment_state.state_config_dir_path()}")
 
       elif command == "help":
         help_menu()

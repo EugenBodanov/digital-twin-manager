@@ -1,4 +1,6 @@
 from deployers.base import Deployer
+from deployers.aws.core.plan_actions import plan_action
+import deployment_state
 import time
 import globals
 import util
@@ -7,6 +9,51 @@ from botocore.exceptions import ClientError
 class TwinmakerWorkspaceDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
+
+  def plan(self):
+    previous_workspace_name = deployment_state.last_applied_twinmaker_workspace_name()
+    desired_workspace_name = globals.twinmaker_workspace_name()
+    previous_role_name = deployment_state.last_applied_twinmaker_iam_role_name()
+    desired_role_name = globals.twinmaker_iam_role_name()
+    previous_bucket_name = deployment_state.last_applied_twinmaker_s3_bucket_name()
+    desired_bucket_name = globals.twinmaker_s3_bucket_name()
+    previous_region = deployment_state.last_applied_aws_region()
+    desired_region = globals.aws_twinmaker_client.meta.region_name
+
+    if (
+      previous_workspace_name == desired_workspace_name
+      and previous_role_name == desired_role_name
+      and previous_bucket_name == desired_bucket_name
+      and previous_region == desired_region
+    ):
+      self.log(f"TwinMaker Workspace {desired_workspace_name} is up to date in {desired_region}.")
+      return [
+        plan_action(
+          desired_workspace_name,
+          "twinmaker_workspace",
+          region=desired_region,
+        )
+      ]
+
+    self.log(
+      "TwinMaker Workspace will be redeployed: "
+      f"{previous_workspace_name} ({previous_region}) -> "
+      f"{desired_workspace_name} ({desired_region})."
+    )
+    return [
+      plan_action(
+        previous_workspace_name,
+        "twinmaker_workspace",
+        action="DESTROY",
+        region=previous_region,
+      ),
+      plan_action(
+        desired_workspace_name,
+        "twinmaker_workspace",
+        action="DEPLOY",
+        region=desired_region,
+      ),
+    ]
 
   def deploy(self):
     workspace_name = globals.twinmaker_workspace_name()

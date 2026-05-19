@@ -3,7 +3,7 @@ from deployers.aws.core.aws_arns import iot_rule_arn, lambda_function_arn
 from deployers.aws.core.lambda_permission import LambdaPermissionPlanner
 from deployers.aws.core.plan_actions import plan_action
 import globals
-import redeployment_state
+import deployment_state
 import util
 from botocore.exceptions import ClientError
 
@@ -74,174 +74,47 @@ class DispatcherIotRuleDeployer(Deployer):
     )
 
   def plan(self):
-    previous_rule_name = redeployment_state.last_applied_dispatcher_iot_rule_name()
+    previous_rule_name = deployment_state.last_applied_dispatcher_iot_rule_name()
     desired_rule_name = globals.dispatcher_iot_rule_name()
-    previous_topic = redeployment_state.last_applied_dispatcher_iot_rule_topic()
+    previous_topic = deployment_state.last_applied_dispatcher_iot_rule_topic()
     desired_topic = globals.dispatcher_iot_rule_topic()
-    previous_function_name = redeployment_state.last_applied_dispatcher_lambda_function_name()
+    previous_function_name = deployment_state.last_applied_dispatcher_lambda_function_name()
     desired_function_name = globals.dispatcher_lambda_function_name()
-    desired_dt_name = globals.config["digital_twin_name"]
 
-    actions = plan_action(
-      "dispatcher_iot_rule",
-      "iot_rule",
-      previous_rule_name=previous_rule_name,
-      desired_rule_name=desired_rule_name,
-      previous_topic=previous_topic,
-      desired_topic=desired_topic,
-      previous_function_name=previous_function_name,
-      desired_function_name=desired_function_name,
-      child_changes=[],
-    )
+    if (
+            previous_topic != desired_topic
+            or previous_function_name != desired_function_name
+            or previous_rule_name != desired_rule_name
+    ):
+      self.log("Dispatcher IoT Rule configuration drift detected.")
 
-    permission_action = self._lambda_permission_plan(
-      previous_rule_name,
-      desired_rule_name,
-      previous_function_name,
-      desired_function_name
-    )
-    actions["child_changes"].append(permission_action)
-
-    if permission_action["blocked"]:
-      actions["blocked"] = True
-      actions["blockers"].extend(permission_action["blockers"])
-
-    if not previous_rule_name:
-      if self._topic_rule(desired_rule_name) is not None:
+      if previous_topic != desired_topic:
         self.log(
-          "STATE_SYNC_REQUIRED Desired Dispatcher IoT Rule already exists: "
-          f"{desired_rule_name}"
+          f"Topic changed: previous_topic={previous_topic}, "
+          f"desired_topic={desired_topic}."
         )
 
-        actions.update({
-          "action": "CREATE",
-          "blocked": True,
-          "state_sync_required": True,
-        })
-        actions["blockers"].append(
-          f"Desired IoT rule already exists: {desired_rule_name}"
-        )
-        return actions
-
-      self.log(f"CREATE Dispatcher IoT Rule: {desired_rule_name}")
-
-      actions.update({
-        "action": "CREATE",
-      })
-      return actions
-
-    previous_rule = self._topic_rule(previous_rule_name)
-    drift_fields = []
-
-    if previous_rule is None:
-      drift_fields.append("missing")
-    else:
-      drift_fields = self._drifted_fields(
-        previous_rule,
-        previous_topic,
-        previous_function_name
-      )
-
-    if drift_fields:
-      if drift_fields == ["missing"]:
-        if previous_rule_name != desired_rule_name:
-          previous_dt_name = redeployment_state.last_applied_digital_twin_name()
-
-          self.log(
-            "CREATE Dispatcher IoT Rule recovery: "
-            f"{previous_rule_name} -> {desired_rule_name} "
-            f"(digital_twin_name changed: {previous_dt_name} -> {desired_dt_name}); "
-            "requires allow_recovery"
-          )
-        else:
-          self.log(
-            "CREATE Dispatcher IoT Rule recovery: "
-            f"{previous_rule_name}; requires allow_recovery"
-          )
-
-        actions.update({
-          "action": "CREATE",
-          "required_flags": ["allow_recovery"],
-          "drift_fields": drift_fields,
-        })
-
-        if (
-          previous_rule_name != desired_rule_name
-          and self._topic_rule(desired_rule_name) is not None
-        ):
-          self.log(
-            "STATE_SYNC_REQUIRED Desired Dispatcher IoT Rule already exists: "
-            f"{desired_rule_name}"
-          )
-
-          actions["blocked"] = True
-          actions["blockers"].append(
-            f"Desired IoT rule already exists: {desired_rule_name}"
-          )
-          actions["state_sync_required"] = True
-
-        return actions
-
-      self.log(
-        "DRIFT_UNKNOWN Dispatcher IoT Rule differs from state: "
-        f"{previous_rule_name}; fields={drift_fields}; no safe update reference"
-      )
-      actions.update({
-        "action": "DRIFT_UNKNOWN",
-        "blocked": True,
-        "drift_fields": drift_fields,
-      })
-      actions["blockers"].append("Actual IoT rule differs from last-applied state")
-      return actions
-
-    if previous_rule_name != desired_rule_name:
-      previous_dt_name = redeployment_state.last_applied_digital_twin_name()
-
-      self.log(
-        "REPLACE_REQUIRED Dispatcher IoT Rule: "
-        f"{previous_rule_name} -> {desired_rule_name} "
-        f"(digital_twin_name changed: {previous_dt_name} -> {desired_dt_name})"
-      )
-      self.log(f"UPDATE Dispatcher IoT Rule topic: {previous_topic} -> {desired_topic}")
-
-      actions.update({
-        "action": "REPLACE_REQUIRED",
-        "required_flags": ["allow_replacement"],
-      })
-
-      if self._topic_rule(desired_rule_name) is not None:
+      if previous_function_name != desired_function_name:
         self.log(
-          "STATE_SYNC_REQUIRED Desired Dispatcher IoT Rule already exists: "
-          f"{desired_rule_name}"
+          f"Lambda target changed: previous_function_name={previous_function_name}, "
+          f"desired_function_name={desired_function_name}."
         )
 
-        actions["blocked"] = True
-        actions["blockers"].append(
-          f"Desired IoT rule already exists: {desired_rule_name}"
+      if previous_rule_name != desired_rule_name:
+        self.log(
+          f"Rule name changed: previous_rule_name={previous_rule_name}, "
+          f"desired_rule_name={desired_rule_name}."
         )
-        actions["state_sync_required"] = True
 
-      return actions
+      return [
+        plan_action(previous_rule_name, "iot_rule", action="DESTROY"),
+        plan_action(desired_rule_name, "iot_rule", action="DEPLOY"),
+      ]
 
-    changed_fields = self._drifted_fields(
-      previous_rule,
-      desired_topic,
-      desired_function_name
-    )
-
-    if changed_fields:
-      self.log(
-        "UPDATE Dispatcher IoT Rule: "
-        f"{desired_rule_name}; fields={changed_fields}"
-      )
-      actions.update({
-        "action": "UPDATE",
-        "changed_fields": changed_fields,
-      })
-      return actions
-
-    self.log(f"NO_CHANGE Dispatcher IoT Rule: {desired_rule_name}")
-    return actions
+    self.log(f"Dispatcher IoT Rule is up to date.")
+    return [
+      plan_action(desired_rule_name, "iot_rule")
+    ]
 
   def deploy(self):
     rule_name = globals.dispatcher_iot_rule_name()

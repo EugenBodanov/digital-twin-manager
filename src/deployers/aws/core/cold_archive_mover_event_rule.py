@@ -1,3 +1,5 @@
+import deployment_state
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import globals
 import util
@@ -6,6 +8,25 @@ from botocore.exceptions import ClientError
 class ColdArchiveMoverEventRuleDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
+
+  def plan(self):
+    previous_rule_name = deployment_state.last_applied_cold_archive_mover_event_rule_name()
+    desired_rule_name = globals.cold_archive_mover_event_rule_name()
+
+    previous_function_name = deployment_state.last_applied_cold_archive_mover_lambda_function_name()
+    desired_function_name = globals.cold_archive_mover_lambda_function_name()
+
+    if previous_function_name == desired_function_name and previous_rule_name == desired_rule_name:
+      self.log(f"Cold to Archive Mover EventBridge Rule {desired_rule_name} is up to date.")
+      return [
+        plan_action(desired_rule_name, "event_rule")
+      ]
+
+    self.log(f"Cold to Archive Mover EventBridge Rule name changed from {previous_rule_name} to {desired_rule_name}.")
+    return [
+      plan_action(previous_rule_name, "event_rule", action="DESTROY"),
+      plan_action(desired_rule_name, "event_rule", action="DEPLOY"),
+    ]
 
   def deploy(self):
     rule_name = globals.cold_archive_mover_event_rule_name()

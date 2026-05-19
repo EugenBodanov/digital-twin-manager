@@ -1,3 +1,5 @@
+import deployment_state
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import globals
 import util
@@ -6,6 +8,42 @@ from botocore.exceptions import ClientError
 class ColdS3BucketDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
+
+  def plan(self):
+    previous_bucket_name = deployment_state.last_applied_cold_s3_bucket_name()
+    desired_bucket_name = globals.cold_s3_bucket_name()
+
+    previous_region = deployment_state.last_applied_aws_region()
+    desired_region = globals.aws_s3_client.meta.region_name
+
+    if (
+      previous_bucket_name == desired_bucket_name
+      and previous_region == desired_region
+    ):
+      self.log(f"Cold S3 Bucket {desired_bucket_name} is up to date in {desired_region}.")
+      return [
+        plan_action(desired_bucket_name, "s3_bucket", region=desired_region)
+      ]
+
+    self.log(
+      "Cold S3 Bucket will be redeployed: "
+      f"{previous_bucket_name} ({previous_region}) -> "
+      f"{desired_bucket_name} ({desired_region})."
+    )
+    return [
+      plan_action(
+        previous_bucket_name,
+        "s3_bucket",
+        action="DESTROY",
+        region=previous_region,
+      ),
+      plan_action(
+        desired_bucket_name,
+        "s3_bucket",
+        action="DEPLOY",
+        region=desired_region,
+      ),
+    ]
 
   def deploy(self):
     bucket_name = globals.cold_s3_bucket_name()

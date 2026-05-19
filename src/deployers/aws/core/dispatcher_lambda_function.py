@@ -3,7 +3,7 @@ from deployers.aws.core.plan_actions import plan_action
 import json
 import os
 import globals
-import redeployment_state
+import deployment_state
 import util
 from botocore.exceptions import ClientError
 
@@ -35,7 +35,7 @@ class DispatcherLambdaFunctionDeployer(Deployer):
 
   def _previous_function_configuration(self):
     return self._function_configuration_from_digital_twin_info(
-      redeployment_state.last_applied_digital_twin_info()
+      deployment_state.last_applied_digital_twin_info()
     )
 
   def _desired_function_configuration(self):
@@ -59,150 +59,23 @@ class DispatcherLambdaFunctionDeployer(Deployer):
     return changed_fields
 
   def plan(self):
-    previous_function_name = redeployment_state.last_applied_dispatcher_lambda_function_name()
+    previous_function_name = deployment_state.last_applied_dispatcher_lambda_function_name()
     desired_function_name = globals.dispatcher_lambda_function_name()
-    desired_dt_name = globals.config["digital_twin_name"]
 
-    actions = plan_action(
-      "dispatcher_lambda_function",
-      "lambda_function",
-      previous_function_name=previous_function_name,
-      desired_function_name=desired_function_name,
-    )
+    if previous_function_name == desired_function_name:
 
-    if not previous_function_name:
-      if self._function_configuration(desired_function_name) is not None:
-        self.log(
-          "STATE_SYNC_REQUIRED Desired Dispatcher Lambda Function already exists: "
-          f"{desired_function_name}"
-        )
+      self.log(f"Dispatcher Lambda function {desired_function_name} is up to date.")
 
-        actions.update({
-          "action": "CREATE",
-          "blocked": True,
-          "blockers": [
-            f"Desired Lambda function already exists: {desired_function_name}"
-          ],
-          "state_sync_required": True,
-        })
-        return actions
+      return [
+        plan_action(desired_function_name, "lambda_function")
+      ]
 
-      self.log(f"CREATE Dispatcher Lambda Function: {desired_function_name}")
+    self.log(f"Dispatcher Lambda function name changed from {previous_function_name} to {desired_function_name}.")
 
-      actions.update({
-        "action": "CREATE",
-      })
-      return actions
-
-    previous_configuration = self._function_configuration(previous_function_name)
-    drift_fields = []
-
-    if previous_configuration is None:
-      drift_fields.append("missing")
-    else:
-      drift_fields = self._drift_fields(
-        previous_configuration,
-        self._previous_function_configuration()
-      )
-
-    if drift_fields:
-      if drift_fields == ["missing"]:
-        if previous_function_name != desired_function_name:
-          previous_dt_name = redeployment_state.last_applied_digital_twin_name()
-
-          self.log(
-            "CREATE Dispatcher Lambda Function recovery: "
-            f"{previous_function_name} -> {desired_function_name} "
-            f"(digital_twin_name changed: {previous_dt_name} -> {desired_dt_name}); "
-            "requires allow_recovery"
-          )
-        else:
-          self.log(
-            "CREATE Dispatcher Lambda Function recovery: "
-            f"{previous_function_name}; requires allow_recovery"
-          )
-
-        actions.update({
-          "action": "CREATE",
-          "required_flags": ["allow_recovery"],
-          "drift_fields": drift_fields,
-        })
-
-        if (
-          previous_function_name != desired_function_name
-          and self._function_configuration(desired_function_name) is not None
-        ):
-          self.log(
-            "STATE_SYNC_REQUIRED Desired Dispatcher Lambda Function already exists: "
-            f"{desired_function_name}"
-          )
-
-          actions["blocked"] = True
-          actions["blockers"].append(
-            f"Desired Lambda function already exists: {desired_function_name}"
-          )
-          actions["state_sync_required"] = True
-
-        return actions
-
-      self.log(
-        "DRIFT_UNKNOWN Dispatcher Lambda Function differs from state: "
-        f"{previous_function_name}; fields={drift_fields}; no safe update reference"
-      )
-      actions.update({
-        "action": "DRIFT_UNKNOWN",
-        "blocked": True,
-        "drift_fields": drift_fields,
-        "blockers": ["Actual Lambda function differs from last-applied state"],
-      })
-      return actions
-
-    if previous_function_name != desired_function_name:
-      previous_dt_name = redeployment_state.last_applied_digital_twin_name()
-
-      self.log(
-        "REPLACE_REQUIRED Dispatcher Lambda Function: "
-        f"{previous_function_name} -> {desired_function_name} "
-        f"(digital_twin_name changed: {previous_dt_name} -> {desired_dt_name})"
-      )
-
-      actions.update({
-        "action": "REPLACE_REQUIRED",
-        "required_flags": ["allow_replacement"],
-      })
-
-      if self._function_configuration(desired_function_name) is not None:
-        self.log(
-          "STATE_SYNC_REQUIRED Desired Dispatcher Lambda Function already exists: "
-          f"{desired_function_name}"
-        )
-
-        actions["blocked"] = True
-        actions["blockers"].append(
-          f"Desired Lambda function already exists: {desired_function_name}"
-        )
-        actions["state_sync_required"] = True
-
-      return actions
-
-    changed_fields = self._drift_fields(
-      previous_configuration,
-      self._desired_function_configuration()
-    )
-
-    if changed_fields:
-      self.log(
-        "UPDATE Dispatcher Lambda Function configuration: "
-        f"{desired_function_name}; fields={changed_fields}"
-      )
-      actions.update({
-        "action": "UPDATE",
-        "changed_fields": changed_fields,
-      })
-      return actions
-
-    self.log(f"NO_CHANGE Dispatcher Lambda Function: {desired_function_name}")
-    return actions
+    return [
+      plan_action(previous_function_name, "lambda_function", action="DESTROY"),
+      plan_action(desired_function_name, "lambda_function", action="DEPLOY"),
+    ]
 
   def deploy(self):
     function_name = globals.dispatcher_lambda_function_name()

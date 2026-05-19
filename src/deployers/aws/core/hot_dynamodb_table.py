@@ -1,3 +1,5 @@
+import deployment_state
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 from datetime import datetime, timezone
 import time
@@ -8,6 +10,22 @@ from botocore.exceptions import ClientError
 class HotDynamodbTableDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
+
+  def plan(self):
+    previous_table_name = deployment_state.last_applied_hot_dynamodb_table_name()
+    desired_table_name = globals.hot_dynamodb_table_name()
+
+    if previous_table_name == desired_table_name:
+      self.log(f"Hot DynamoDb table {desired_table_name} is up to date.")
+      return [
+        plan_action(desired_table_name, "dynamodb_table")
+      ]
+
+    self.log(f"Hot DynamoDb table name changed from {previous_table_name} to {desired_table_name}.")
+    return [
+      plan_action(previous_table_name, "dynamodb_table", action="DESTROY"),
+      plan_action(desired_table_name, "dynamodb_table", action="DEPLOY"),
+    ]
 
   def deploy(self):
     table_name = globals.hot_dynamodb_table_name()

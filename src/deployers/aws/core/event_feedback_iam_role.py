@@ -1,13 +1,31 @@
 from deployers.base import Deployer
+from deployers.aws.core.plan_actions import plan_action
 import json
 import time
 import globals
+import deployment_state
 import util
 from botocore.exceptions import ClientError
 
 class EventFeedbackIamRoleDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
+
+  def plan(self):
+    previous_role_name = deployment_state.last_applied_event_feedback_iam_role_name()
+    desired_role_name = globals.event_feedback_iam_role_name()
+
+    if previous_role_name == desired_role_name:
+      self.log(f"Event-Feedback IAM Role {desired_role_name} is up to date.")
+      return [
+        plan_action(desired_role_name, "iam")
+      ]
+
+    self.log(f"Event-Feedback IAM Role name changed from {previous_role_name} to {desired_role_name}.")
+    return [
+      plan_action(previous_role_name, "iam", action="DESTROY"),
+      plan_action(desired_role_name, "iam", action="DEPLOY"),
+    ]
 
   def deploy(self):
     role_name = globals.event_feedback_iam_role_name()
