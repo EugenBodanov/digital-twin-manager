@@ -97,6 +97,42 @@ class LambdaPermissionPlanner:
     })
     return permission_action
 
+  def _block_if_desired_statement_exists(
+    self,
+    permission_action,
+    desired_function_name,
+    desired_source_arn
+  ):
+    try:
+      desired_statement = self._statement(desired_function_name)
+    except PermissionError as e:
+      return self._error_action(permission_action, desired_function_name, e)
+
+    if desired_statement is None:
+      return permission_action
+
+    desired_drifted_fields = self._drifted_fields(
+      desired_statement,
+      desired_function_name,
+      desired_source_arn
+    )
+
+    self.log(
+      f"STATE_SYNC_REQUIRED Desired {self.label} already exists: "
+      f"{desired_function_name}:{self.statement_id}"
+    )
+
+    permission_action["blocked"] = True
+    permission_action["state_sync_required"] = True
+    permission_action["blockers"].append(
+      "Desired Lambda permission statement already exists"
+    )
+
+    if desired_drifted_fields:
+      permission_action["desired_drift_fields"] = desired_drifted_fields
+
+    return permission_action
+
   def plan(
     self,
     previous_function_name,
@@ -115,6 +151,22 @@ class LambdaPermissionPlanner:
       desired_source_arn=desired_source_arn,
     )
 
+    if not previous_function_name or not previous_source_arn:
+      self.log(
+        f"CREATE {self.label}: "
+        f"{desired_function_name}:{self.statement_id}"
+      )
+
+      permission_action.update({
+        "action": "CREATE",
+      })
+
+      return self._block_if_desired_statement_exists(
+        permission_action,
+        desired_function_name,
+        desired_source_arn
+      )
+
     try:
       actual_statement = self._statement(previous_function_name)
     except PermissionError as e:
@@ -127,6 +179,39 @@ class LambdaPermissionPlanner:
     )
 
     if drifted_fields:
+      if drifted_fields == ["missing"]:
+        if (
+          previous_function_name != desired_function_name
+          or previous_source_arn != desired_source_arn
+        ):
+          self.log(
+            f"CREATE {self.label} recovery: "
+            f"{previous_function_name}:{self.statement_id} -> "
+            f"{desired_function_name}:{self.statement_id}; "
+            "requires allow_recovery"
+          )
+        else:
+          self.log(
+            f"CREATE {self.label} recovery: "
+            f"{previous_function_name}:{self.statement_id}; "
+            "requires allow_recovery"
+          )
+
+        permission_action.update({
+          "action": "CREATE",
+          "required_flags": ["allow_recovery"],
+          "drift_fields": drifted_fields,
+        })
+
+        if previous_function_name != desired_function_name:
+          return self._block_if_desired_statement_exists(
+            permission_action,
+            desired_function_name,
+            desired_source_arn
+          )
+
+        return permission_action
+
       self.log(
         f"DRIFT_UNKNOWN {self.label} differs from state: "
         f"{previous_function_name}:{self.statement_id}; "
@@ -158,31 +243,11 @@ class LambdaPermissionPlanner:
       })
 
       if previous_function_name != desired_function_name:
-        try:
-          desired_statement = self._statement(desired_function_name)
-        except PermissionError as e:
-          return self._error_action(permission_action, desired_function_name, e)
-
-        if desired_statement is not None:
-          desired_drifted_fields = self._drifted_fields(
-            desired_statement,
-            desired_function_name,
-            desired_source_arn
-          )
-
-          self.log(
-            f"STATE_SYNC_REQUIRED Desired {self.label} already exists: "
-            f"{desired_function_name}:{self.statement_id}"
-          )
-
-          permission_action["blocked"] = True
-          permission_action["state_sync_required"] = True
-          permission_action["blockers"].append(
-            "Desired Lambda permission statement already exists"
-          )
-
-          if desired_drifted_fields:
-            permission_action["desired_drift_fields"] = desired_drifted_fields
+        return self._block_if_desired_statement_exists(
+          permission_action,
+          desired_function_name,
+          desired_source_arn
+        )
 
       return permission_action
 

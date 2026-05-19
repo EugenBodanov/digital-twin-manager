@@ -54,6 +54,10 @@ class DispatcherIotRuleDeployer(Deployer):
     previous_function_name,
     desired_function_name
   ):
+    previous_source_arn = None
+    if previous_rule_name:
+      previous_source_arn = iot_rule_arn(previous_rule_name)
+
     return LambdaPermissionPlanner(
       resource="dispatcher_iot_rule_lambda_permission",
       parent_resource="dispatcher_iot_rule",
@@ -65,7 +69,7 @@ class DispatcherIotRuleDeployer(Deployer):
     ).plan(
       previous_function_name,
       desired_function_name,
-      iot_rule_arn(previous_rule_name),
+      previous_source_arn,
       iot_rule_arn(desired_rule_name)
     )
 
@@ -76,7 +80,6 @@ class DispatcherIotRuleDeployer(Deployer):
     desired_topic = globals.dispatcher_iot_rule_topic()
     previous_function_name = redeployment_state.last_applied_dispatcher_lambda_function_name()
     desired_function_name = globals.dispatcher_lambda_function_name()
-    previous_dt_name = redeployment_state.last_applied_digital_twin_name()
     desired_dt_name = globals.config["digital_twin_name"]
 
     actions = plan_action(
@@ -91,18 +94,6 @@ class DispatcherIotRuleDeployer(Deployer):
       child_changes=[],
     )
 
-    previous_rule = self._topic_rule(previous_rule_name)
-    drift_fields = []
-
-    if previous_rule is None:
-      drift_fields.append("missing")
-    else:
-      drift_fields = self._drifted_fields(
-        previous_rule,
-        previous_topic,
-        previous_function_name
-      )
-
     permission_action = self._lambda_permission_plan(
       previous_rule_name,
       desired_rule_name,
@@ -115,7 +106,82 @@ class DispatcherIotRuleDeployer(Deployer):
       actions["blocked"] = True
       actions["blockers"].extend(permission_action["blockers"])
 
+    if not previous_rule_name:
+      if self._topic_rule(desired_rule_name) is not None:
+        self.log(
+          "STATE_SYNC_REQUIRED Desired Dispatcher IoT Rule already exists: "
+          f"{desired_rule_name}"
+        )
+
+        actions.update({
+          "action": "CREATE",
+          "blocked": True,
+          "state_sync_required": True,
+        })
+        actions["blockers"].append(
+          f"Desired IoT rule already exists: {desired_rule_name}"
+        )
+        return actions
+
+      self.log(f"CREATE Dispatcher IoT Rule: {desired_rule_name}")
+
+      actions.update({
+        "action": "CREATE",
+      })
+      return actions
+
+    previous_rule = self._topic_rule(previous_rule_name)
+    drift_fields = []
+
+    if previous_rule is None:
+      drift_fields.append("missing")
+    else:
+      drift_fields = self._drifted_fields(
+        previous_rule,
+        previous_topic,
+        previous_function_name
+      )
+
     if drift_fields:
+      if drift_fields == ["missing"]:
+        if previous_rule_name != desired_rule_name:
+          previous_dt_name = redeployment_state.last_applied_digital_twin_name()
+
+          self.log(
+            "CREATE Dispatcher IoT Rule recovery: "
+            f"{previous_rule_name} -> {desired_rule_name} "
+            f"(digital_twin_name changed: {previous_dt_name} -> {desired_dt_name}); "
+            "requires allow_recovery"
+          )
+        else:
+          self.log(
+            "CREATE Dispatcher IoT Rule recovery: "
+            f"{previous_rule_name}; requires allow_recovery"
+          )
+
+        actions.update({
+          "action": "CREATE",
+          "required_flags": ["allow_recovery"],
+          "drift_fields": drift_fields,
+        })
+
+        if (
+          previous_rule_name != desired_rule_name
+          and self._topic_rule(desired_rule_name) is not None
+        ):
+          self.log(
+            "STATE_SYNC_REQUIRED Desired Dispatcher IoT Rule already exists: "
+            f"{desired_rule_name}"
+          )
+
+          actions["blocked"] = True
+          actions["blockers"].append(
+            f"Desired IoT rule already exists: {desired_rule_name}"
+          )
+          actions["state_sync_required"] = True
+
+        return actions
+
       self.log(
         "DRIFT_UNKNOWN Dispatcher IoT Rule differs from state: "
         f"{previous_rule_name}; fields={drift_fields}; no safe update reference"
@@ -129,6 +195,8 @@ class DispatcherIotRuleDeployer(Deployer):
       return actions
 
     if previous_rule_name != desired_rule_name:
+      previous_dt_name = redeployment_state.last_applied_digital_twin_name()
+
       self.log(
         "REPLACE_REQUIRED Dispatcher IoT Rule: "
         f"{previous_rule_name} -> {desired_rule_name} "

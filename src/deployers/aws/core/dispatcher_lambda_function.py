@@ -61,7 +61,6 @@ class DispatcherLambdaFunctionDeployer(Deployer):
   def plan(self):
     previous_function_name = redeployment_state.last_applied_dispatcher_lambda_function_name()
     desired_function_name = globals.dispatcher_lambda_function_name()
-    previous_dt_name = redeployment_state.last_applied_digital_twin_name()
     desired_dt_name = globals.config["digital_twin_name"]
 
     actions = plan_action(
@@ -70,6 +69,30 @@ class DispatcherLambdaFunctionDeployer(Deployer):
       previous_function_name=previous_function_name,
       desired_function_name=desired_function_name,
     )
+
+    if not previous_function_name:
+      if self._function_configuration(desired_function_name) is not None:
+        self.log(
+          "STATE_SYNC_REQUIRED Desired Dispatcher Lambda Function already exists: "
+          f"{desired_function_name}"
+        )
+
+        actions.update({
+          "action": "CREATE",
+          "blocked": True,
+          "blockers": [
+            f"Desired Lambda function already exists: {desired_function_name}"
+          ],
+          "state_sync_required": True,
+        })
+        return actions
+
+      self.log(f"CREATE Dispatcher Lambda Function: {desired_function_name}")
+
+      actions.update({
+        "action": "CREATE",
+      })
+      return actions
 
     previous_configuration = self._function_configuration(previous_function_name)
     drift_fields = []
@@ -83,6 +106,45 @@ class DispatcherLambdaFunctionDeployer(Deployer):
       )
 
     if drift_fields:
+      if drift_fields == ["missing"]:
+        if previous_function_name != desired_function_name:
+          previous_dt_name = redeployment_state.last_applied_digital_twin_name()
+
+          self.log(
+            "CREATE Dispatcher Lambda Function recovery: "
+            f"{previous_function_name} -> {desired_function_name} "
+            f"(digital_twin_name changed: {previous_dt_name} -> {desired_dt_name}); "
+            "requires allow_recovery"
+          )
+        else:
+          self.log(
+            "CREATE Dispatcher Lambda Function recovery: "
+            f"{previous_function_name}; requires allow_recovery"
+          )
+
+        actions.update({
+          "action": "CREATE",
+          "required_flags": ["allow_recovery"],
+          "drift_fields": drift_fields,
+        })
+
+        if (
+          previous_function_name != desired_function_name
+          and self._function_configuration(desired_function_name) is not None
+        ):
+          self.log(
+            "STATE_SYNC_REQUIRED Desired Dispatcher Lambda Function already exists: "
+            f"{desired_function_name}"
+          )
+
+          actions["blocked"] = True
+          actions["blockers"].append(
+            f"Desired Lambda function already exists: {desired_function_name}"
+          )
+          actions["state_sync_required"] = True
+
+        return actions
+
       self.log(
         "DRIFT_UNKNOWN Dispatcher Lambda Function differs from state: "
         f"{previous_function_name}; fields={drift_fields}; no safe update reference"
@@ -96,6 +158,8 @@ class DispatcherLambdaFunctionDeployer(Deployer):
       return actions
 
     if previous_function_name != desired_function_name:
+      previous_dt_name = redeployment_state.last_applied_digital_twin_name()
+
       self.log(
         "REPLACE_REQUIRED Dispatcher Lambda Function: "
         f"{previous_function_name} -> {desired_function_name} "
