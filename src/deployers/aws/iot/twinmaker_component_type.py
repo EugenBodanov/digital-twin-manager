@@ -1,5 +1,7 @@
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import globals
+import deployment_state
 from botocore.exceptions import ClientError
 import time
 import util
@@ -7,6 +9,96 @@ import util
 class TwinmakerComponentTypeDeployer(Deployer):
   def log(self, message):
     print(f"IoT: {message}")
+
+  def _property_definitions(self, iot_device):
+    property_definitions = {}
+
+    for iot_property in iot_device.get("properties", []):
+      property_definitions[iot_property["name"]] = {
+        "dataType": {
+          "type": iot_property["dataType"]
+        },
+        "isTimeSeries": True,
+        "isStoredExternally": True
+      }
+
+    return property_definitions
+
+  def plan(self, previous_iot_device, desired_iot_device):
+    previous_connector_function_name = deployment_state.last_applied_hot_reader_lambda_function_name()
+    desired_connector_function_name = globals.hot_reader_lambda_function_name()
+
+    previous_workspace_name = deployment_state.last_applied_twinmaker_workspace_name()
+    desired_workspace_name = globals.twinmaker_workspace_name()
+
+    previous_component_type_id = (
+      deployment_state.last_applied_twinmaker_component_type_id(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_component_type_id = (
+      globals.twinmaker_component_type_id(desired_iot_device)
+      if desired_iot_device else None
+    )
+
+    previous_property_definitions = (
+      self._property_definitions(previous_iot_device)
+      if previous_iot_device else {}
+    )
+    desired_property_definitions = (
+      self._property_definitions(desired_iot_device)
+      if desired_iot_device else {}
+    )
+
+    if previous_iot_device is None:
+      self.log(f"TwinMaker Component Type {desired_component_type_id} is new.")
+      return [
+        plan_action(desired_component_type_id, "twinmaker_component_type", action="DEPLOY"),
+      ]
+
+    if desired_iot_device is None:
+      self.log(f"TwinMaker Component Type {previous_component_type_id} was removed from config.")
+      return [
+        plan_action(previous_component_type_id, "twinmaker_component_type", action="DESTROY"),
+      ]
+
+    if (
+            previous_connector_function_name == desired_connector_function_name
+            and previous_workspace_name == desired_workspace_name
+            and previous_component_type_id == desired_component_type_id
+            and previous_property_definitions == desired_property_definitions
+    ):
+      self.log(f"TwinMaker Component Type {desired_component_type_id} is up to date.")
+      return [
+        plan_action(desired_component_type_id, "twinmaker_component_type"),
+      ]
+
+    if previous_connector_function_name != desired_connector_function_name:
+      self.log(
+        "TwinMaker Component Type connector Lambda function has changed from "
+        f"{previous_connector_function_name} to {desired_connector_function_name}"
+      )
+
+    if previous_workspace_name != desired_workspace_name:
+      self.log(
+        f"TwinMaker workspace has changed from {previous_workspace_name} to {desired_workspace_name}"
+      )
+
+    if previous_component_type_id != desired_component_type_id:
+      self.log(
+        "TwinMaker Component Type id has changed from "
+        f"{previous_component_type_id} to {desired_component_type_id}"
+      )
+
+    if previous_property_definitions != desired_property_definitions:
+      self.log(
+        f"TwinMaker Component Type properties have changed for {desired_component_type_id}"
+      )
+
+    return [
+      plan_action(previous_component_type_id, "twinmaker_component_type", action="DESTROY"),
+      plan_action(desired_component_type_id, "twinmaker_component_type", action="DEPLOY"),
+    ]
+
 
   def deploy(self, iot_device):
     connector_function_name = globals.hot_reader_lambda_function_name()
@@ -16,17 +108,7 @@ class TwinmakerComponentTypeDeployer(Deployer):
     response = globals.aws_lambda_client.get_function(FunctionName=connector_function_name)
     connector_function_arn = response["Configuration"]["FunctionArn"]
 
-    property_definitions = {}
-
-    if "properties" in iot_device:
-      for property in iot_device["properties"]:
-        property_definitions[property["name"]] = {
-          "dataType": {
-            "type": property["dataType"]
-          },
-          "isTimeSeries": True,
-          "isStoredExternally": True
-        }
+    property_definitions = self._property_definitions(iot_device)
 
     functions = {}
 

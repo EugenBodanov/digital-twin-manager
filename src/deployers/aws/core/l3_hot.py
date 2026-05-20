@@ -12,7 +12,7 @@ class L3HotDeployer(Deployer):
     print(message)
 
   DESTROY_ORDER = {
-    "event_rule": 0,
+    "eventbridge_rule": 0,
     "lambda_function": 1,
     "iam": 2,
     "dynamodb_table": 3,
@@ -22,7 +22,7 @@ class L3HotDeployer(Deployer):
     "dynamodb_table": 0,
     "iam": 1,
     "lambda_function": 2,
-    "event_rule": 3,
+    "eventbridge_rule": 3,
   }
 
   def plan(self):

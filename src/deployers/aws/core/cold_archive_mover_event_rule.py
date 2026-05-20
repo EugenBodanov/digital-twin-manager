@@ -19,13 +19,13 @@ class ColdArchiveMoverEventRuleDeployer(Deployer):
     if previous_function_name == desired_function_name and previous_rule_name == desired_rule_name:
       self.log(f"Cold to Archive Mover EventBridge Rule {desired_rule_name} is up to date.")
       return [
-        plan_action(desired_rule_name, "event_rule")
+        plan_action(desired_rule_name, "eventbridge_rule")
       ]
 
     self.log(f"Cold to Archive Mover EventBridge Rule name changed from {previous_rule_name} to {desired_rule_name}.")
     return [
-      plan_action(previous_rule_name, "event_rule", action="DESTROY"),
-      plan_action(desired_rule_name, "event_rule", action="DEPLOY"),
+      plan_action(previous_rule_name, "eventbridge_rule", action="DESTROY"),
+      plan_action(desired_rule_name, "eventbridge_rule", action="DEPLOY"),
     ]
 
   def deploy(self):

@@ -172,6 +172,11 @@ def last_applied_grafana_workspace_name():
 def last_applied_grafana_iam_role_name():
   return last_applied_digital_twin_name() + "-grafana"
 
+def last_applied_iot_thing_name(iot_device):
+  return last_applied_digital_twin_name() + "-" + iot_device["id"]
+
+def last_applied_iot_thing_policy_name(iot_device):
+  return last_applied_digital_twin_name() + "-" + iot_device["id"]
 
 def _read_json(path):
   with open(path, "r") as file:
@@ -262,3 +267,17 @@ def save_last_applied_config_state():
   _write_json(state_metadata_file_path(), _build_metadata())
   initialize_last_applied_config_state()
   return copied_paths
+
+
+def last_applied_processor_iam_role_name(iot_device):
+    return last_applied_digital_twin_name() + "-" + iot_device["id"] + "-processor"
+
+def last_applied_processor_lambda_function_name_local(iot_device):
+  return iot_device["id"]
+
+def last_applied_processor_lambda_function_name(iot_device):
+  return last_applied_digital_twin_name() + "-" + last_applied_processor_lambda_function_name_local(iot_device) + "-processor"
+
+
+def last_applied_twinmaker_component_type_id(iot_device):
+  return last_applied_digital_twin_name() + "-" + iot_device["id"]

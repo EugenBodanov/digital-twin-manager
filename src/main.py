@@ -81,7 +81,11 @@ def main():
 
       elif command == "plan":
         sanity_checker.check()
-        deployers.aws.core.all.AllDeployer().plan()
+
+        actions = []
+
+        actions.extend(deployers.aws.core.all.AllDeployer().plan())
+        actions.extend(deployers.aws.iot.all.AllDeployer().plan())
 
       elif command == "init-state":
         sanity_checker.check()

@@ -1,3 +1,5 @@
+import deployment_state
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import json
 import globals
@@ -8,6 +10,41 @@ import util
 class ProcessorIamRoleDeployer(Deployer):
   def log(self, message):
     print(f"IoT: {message}")
+
+  def plan(self, previous_iot_device, desired_iot_device):
+    previous_role_name = (
+      deployment_state.last_applied_processor_iam_role_name(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_role_name = (
+      globals.processor_iam_role_name(desired_iot_device)
+      if desired_iot_device else None
+    )
+
+    if previous_iot_device is None:
+      self.log(f"IAM role {desired_role_name} is new.")
+      return [
+        plan_action(desired_role_name, "iam", action="DEPLOY"),
+      ]
+
+    if desired_iot_device is None:
+      self.log(f"IAM role {previous_role_name} was removed from config.")
+      return [
+        plan_action(previous_role_name, "iam", action="DESTROY"),
+      ]
+
+    if previous_role_name == desired_role_name:
+      self.log(f"IAM role {desired_role_name} is up to date.")
+      return [
+        plan_action(desired_role_name, "iam"),
+      ]
+
+    self.log(f"IAM role name has changed from {previous_role_name} to {desired_role_name}")
+
+    return [
+      plan_action(previous_role_name, "iam", action="DESTROY"),
+      plan_action(desired_role_name, "iam", action="DEPLOY"),
+    ]
 
   def deploy(self, iot_device):
     role_name = globals.processor_iam_role_name(iot_device)

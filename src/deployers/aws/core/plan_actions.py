@@ -16,9 +16,41 @@ PlanActionName = Literal[
 ]
 
 
+PlanResourceType = Literal[
+    "dynamodb_table",
+    "eventbridge_rule",
+    "grafana_workspace",
+    "iam",
+    "iot_rule",
+    "iot_thing",
+    "lambda_function",
+    "lambda_permission",
+    "s3_bucket",
+    "step_function",
+    "twinmaker_component_type",
+    "twinmaker_workspace",
+]
+
+
+PLAN_RESOURCE_TYPES: tuple[PlanResourceType, ...] = (
+    "dynamodb_table",
+    "eventbridge_rule",
+    "grafana_workspace",
+    "iam",
+    "iot_rule",
+    "iot_thing",
+    "lambda_function",
+    "lambda_permission",
+    "s3_bucket",
+    "step_function",
+    "twinmaker_component_type",
+    "twinmaker_workspace",
+)
+
+
 class PlannedAction(TypedDict):
     resource: Any
-    resource_type: str
+    resource_type: PlanResourceType
     action: PlanActionName
     blocked: bool
     required_flags: list[str]
@@ -37,7 +69,7 @@ class PlannedActionValues(TypedDict, total=False):
 
 def plan_action(
     resource: Any,
-    resource_type: str,
+    resource_type: PlanResourceType,
     **values: Unpack[PlannedActionValues],
 ) -> PlannedAction:
     action: PlannedAction = {
@@ -55,8 +87,8 @@ def plan_action(
 
 def sort_actions_for_apply(
     actions: list[PlannedAction],
-    destroy_order: dict[str, int],
-    deploy_order: dict[str, int],
+    destroy_order: dict[PlanResourceType, int],
+    deploy_order: dict[PlanResourceType, int],
 ) -> list[PlannedAction]:
     destroy_actions = [
         action for action in actions

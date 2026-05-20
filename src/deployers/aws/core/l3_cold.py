@@ -10,7 +10,7 @@ class L3ColdDeployer(Deployer):
     print(message)
 
   DESTROY_ORDER = {
-    "event_rule": 0,
+    "eventbridge_rule": 0,
     "lambda_function": 1,
     "iam": 2,
     "s3_bucket": 3,
@@ -20,7 +20,7 @@ class L3ColdDeployer(Deployer):
     "s3_bucket": 0,
     "iam": 1,
     "lambda_function": 2,
-    "event_rule": 3,
+    "eventbridge_rule": 3,
   }
 
   def plan(self):

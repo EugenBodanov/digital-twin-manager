@@ -1,3 +1,4 @@
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import json
 import globals
@@ -5,10 +6,57 @@ import os
 from botocore.exceptions import ClientError
 import shutil
 import util
+import deployment_state
 
 class IotThingDeployer(Deployer):
   def log(self, message):
     print(f"IoT: {message}")
+
+  def plan(self, previous_iot_device, desired_iot_device):
+    previous_thing_name = (
+      deployment_state.last_applied_iot_thing_name(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_thing_name = (
+      globals.iot_thing_name(desired_iot_device)
+      if desired_iot_device else None
+    )
+    previous_policy_name = (
+      deployment_state.last_applied_iot_thing_policy_name(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_policy_name = (
+      globals.iot_thing_policy_name(desired_iot_device)
+      if desired_iot_device else None
+    )
+
+    if previous_iot_device is None:
+      self.log(f"IoT Thing {desired_thing_name} is new.")
+      return [
+        plan_action(desired_thing_name, "iot_thing", action="DEPLOY"),
+      ]
+
+    if desired_iot_device is None:
+      self.log(f"IoT Thing {previous_thing_name} was removed from config.")
+      return [
+        plan_action(previous_thing_name, "iot_thing", action="DESTROY"),
+      ]
+
+    if previous_thing_name == desired_thing_name and previous_policy_name == desired_policy_name:
+      self.log(f"IoT Thing {desired_thing_name} is up to date.")
+      return [
+        plan_action(desired_thing_name, "iot_thing"),
+      ]
+
+    if previous_thing_name != desired_thing_name:
+      self.log(f"IoT Thing name has changed from {previous_thing_name} to {desired_thing_name}")
+    if previous_policy_name != desired_policy_name:
+      self.log(f"IoT Thing Policy name has changed from {previous_policy_name} to {desired_policy_name}")
+
+    return [
+      plan_action(previous_thing_name, "iot_thing", action="DESTROY"),
+      plan_action(desired_thing_name, "iot_thing", action="DEPLOY"),
+    ]
 
   def deploy(self, iot_device):
     thing_name = globals.iot_thing_name(iot_device)

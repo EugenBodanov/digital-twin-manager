@@ -6,6 +6,10 @@ from deployers.base import Deployer
 class AllDeployer(Deployer):
   def log(self, message):
     print(f"IoT: {message}")
+  
+  def plan(self):
+    return [L1Deployer().plan(), L2Deployer().plan(), L4Deployer().plan()]
+
 
   def deploy(self):
     L1Deployer().deploy()

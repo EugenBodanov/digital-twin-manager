@@ -18,7 +18,7 @@ class HotColdMoverEventRuleDeployer(Deployer):
     if previous_function_name == desired_function_name and previous_rule_name == desired_rule_name:
       self.log(f"Hot to Cold Mover EventBridge Rule {desired_rule_name} is up to date.")
       return [
-        plan_action(desired_rule_name, "event_rule")
+        plan_action(desired_rule_name, "eventbridge_rule")
       ]
 
     if previous_function_name != desired_function_name:
@@ -27,8 +27,8 @@ class HotColdMoverEventRuleDeployer(Deployer):
       self.log(f"Hot to Cold Mover Lambda function name changed from {previous_function_name} to {desired_function_name}.")
 
     return [
-      plan_action(previous_rule_name, "event_rule", action="DESTROY"),
-      plan_action(desired_rule_name, "event_rule", action="DEPLOY"),
+      plan_action(previous_rule_name, "eventbridge_rule", action="DESTROY"),
+      plan_action(desired_rule_name, "eventbridge_rule", action="DEPLOY"),
     ]
 
   def deploy(self):
