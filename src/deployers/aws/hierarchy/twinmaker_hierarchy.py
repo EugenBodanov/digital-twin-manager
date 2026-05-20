@@ -1,3 +1,6 @@
+import deployment_state
+from deployers.aws.core.json_helpers import normalized_json
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import time
 import globals
@@ -7,6 +10,25 @@ from botocore.exceptions import ClientError
 class TwinmakerHierarchyDeployer(Deployer):
   def log(self, message):
     print(f"Hierarchy: {message}")
+
+  def _root_entities_by_id(self, hierarchy):
+    return {entity["id"]: entity for entity in hierarchy}
+
+  def _ordered_root_ids(self, previous_hierarchy, desired_hierarchy):
+    previous_entities = self._root_entities_by_id(previous_hierarchy)
+    root_ids = []
+
+    for entity in previous_hierarchy:
+      root_ids.append(entity["id"])
+
+    for entity in desired_hierarchy:
+      if entity["id"] not in previous_entities:
+        root_ids.append(entity["id"])
+
+    return root_ids
+
+  def _root_changed(self, previous_root, desired_root):
+    return normalized_json(previous_root) != normalized_json(desired_root)
 
 
   def _deploy_twinmaker_entity(self, entity_info, parent_info=None):
@@ -47,6 +69,61 @@ class TwinmakerHierarchyDeployer(Deployer):
     )
 
     self.log(f"Created IoT TwinMaker Component: {component_info["name"]}")
+
+  def plan(self):
+    previous_hierarchy = deployment_state.last_applied_config_hierarchy
+    desired_hierarchy = globals.config_hierarchy
+
+    previous_workspace_name = deployment_state.last_applied_twinmaker_workspace_name()
+    desired_workspace_name = globals.twinmaker_workspace_name()
+
+    previous_entities = self._root_entities_by_id(previous_hierarchy)
+    desired_entities = self._root_entities_by_id(desired_hierarchy)
+    actions = []
+
+    for entity_id in self._ordered_root_ids(previous_hierarchy, desired_hierarchy):
+      previous_entity = previous_entities.get(entity_id)
+      desired_entity = desired_entities.get(entity_id)
+
+      if previous_entity is None:
+        self.log(f"TwinMaker Hierarchy root entity {entity_id} is new.")
+        actions.append(
+          plan_action(entity_id, "twinmaker_hierarchy", action="DEPLOY")
+        )
+        continue
+
+      if desired_entity is None:
+        self.log(f"TwinMaker Hierarchy root entity {entity_id} was removed from config.")
+        actions.append(
+          plan_action(entity_id, "twinmaker_hierarchy", action="DESTROY")
+        )
+        continue
+
+      if (
+        previous_workspace_name == desired_workspace_name
+        and not self._root_changed(previous_entity, desired_entity)
+      ):
+        self.log(f"TwinMaker Hierarchy root entity {entity_id} is up to date.")
+        actions.append(
+          plan_action(entity_id, "twinmaker_hierarchy")
+        )
+        continue
+
+      if previous_workspace_name != desired_workspace_name:
+        self.log(
+          "TwinMaker Hierarchy workspace has changed from "
+          f"{previous_workspace_name} to {desired_workspace_name}."
+        )
+
+      if self._root_changed(previous_entity, desired_entity):
+        self.log(f"TwinMaker Hierarchy root entity {entity_id} has changed.")
+
+      actions.extend([
+        plan_action(entity_id, "twinmaker_hierarchy", action="DESTROY"),
+        plan_action(entity_id, "twinmaker_hierarchy", action="DEPLOY"),
+      ])
+
+    return actions
 
 
   def deploy(self):

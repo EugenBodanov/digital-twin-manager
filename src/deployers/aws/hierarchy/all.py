@@ -5,6 +5,12 @@ class AllDeployer(Deployer):
   def log(self, message):
     print(f"Hierarchy: {message}")
 
+  def plan(self):
+    return [{
+      "layer": "hierarchy",
+      "actions": TwinmakerHierarchyDeployer().plan()
+    }]
+
   def deploy(self):
     TwinmakerHierarchyDeployer().deploy()
 

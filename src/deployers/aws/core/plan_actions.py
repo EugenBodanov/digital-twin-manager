@@ -28,6 +28,7 @@ PlanResourceType = Literal[
     "s3_bucket",
     "step_function",
     "twinmaker_component_type",
+    "twinmaker_hierarchy",
     "twinmaker_workspace",
 ]
 
@@ -44,6 +45,7 @@ PLAN_RESOURCE_TYPES: tuple[PlanResourceType, ...] = (
     "s3_bucket",
     "step_function",
     "twinmaker_component_type",
+    "twinmaker_hierarchy",
     "twinmaker_workspace",
 )
 
