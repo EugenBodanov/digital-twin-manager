@@ -1,6 +1,7 @@
 import hashlib
 
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import normalized_json, content_changed
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
@@ -170,6 +171,57 @@ class LambdaActionsDeployer(Deployer):
 
     return root_ids
 
+  def _root_event(self, events: list[dict], event_id: str) -> dict:
+    event = self._root_events_by_id(events).get(event_id)
+
+    if event is None:
+      raise ValueError(f"Event Action not found in config: {event_id}")
+
+    return event
+
+  def _event_action_resource_names(self, event: dict, digital_twin_name: str):
+    event_action = event["action"]
+    function_name = event_action["functionName"]
+    resource_name = f"{digital_twin_name}-{function_name}"
+    return resource_name, resource_name
+
+  def _deploy_event_action(self, event: dict, digital_twin_name: str):
+    event_action = event["action"]
+
+    if event_action["type"] != "lambda" or event_action.get("external"):
+      return
+
+    iam_role_name, lambda_function_name = self._event_action_resource_names(
+      event,
+      digital_twin_name,
+    )
+    local_function_name = event_action["functionName"]
+
+    self._create_iam_role(iam_role_name)
+
+    self.log(f"Waiting for propagation...")
+    time.sleep(20)
+
+    self._create_lambda_function(
+      lambda_function_name,
+      event_action.get("pathToCode"),
+      local_function_name,
+    )
+
+  def _destroy_event_action(self, event: dict, digital_twin_name: str):
+    event_action = event["action"]
+
+    if event_action["type"] != "lambda" or event_action.get("external"):
+      return
+
+    iam_role_name, lambda_function_name = self._event_action_resource_names(
+      event,
+      digital_twin_name,
+    )
+
+    self._destroy_lambda_function(lambda_function_name)
+    self._destroy_iam_role(iam_role_name)
+
   def plan(self):
     previous_actions = deployment_state.last_applied_config_events
     desired_actions = globals.config_events
@@ -209,28 +261,33 @@ class LambdaActionsDeployer(Deployer):
 
   def deploy(self):
     for event in globals.config_events:
-      a = event["action"]
-      event_action_iam_role_name = globals.event_action_iam_role_name(a)
-      event_action_lambda_function_name = globals.event_action_lambda_function_name(a)
-      event_action_local_function_name = a["functionName"]
-
-      if a["type"] == "lambda" and not a.get("external"):
-        self._create_iam_role(event_action_iam_role_name)
-
-        self.log(f"Waiting for propagation...")
-        time.sleep(20)
-
-        self._create_lambda_function(event_action_lambda_function_name, a.get("pathToCode"), event_action_local_function_name)
+      self._deploy_event_action(event, globals.config["digital_twin_name"])
 
   def destroy(self):
     for event in globals.config_events:
-      a = event["action"]
-      event_action_iam_role_name = globals.event_action_iam_role_name(a)
-      event_action_lambda_function_name = globals.event_action_lambda_function_name(a)
+      self._destroy_event_action(event, globals.config["digital_twin_name"])
 
-      if a["type"] == "lambda" and not a.get("external"):
-        self._destroy_lambda_function(event_action_lambda_function_name)
-        self._destroy_iam_role(event_action_iam_role_name)
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      event = self._root_event(
+        deployment_state.last_applied_config_events,
+        resource,
+      )
+      self._destroy_event_action(
+        event,
+        deployment_state.last_applied_digital_twin_name(),
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      event = self._root_event(
+        globals.config_events,
+        resource,
+      )
+      self._deploy_event_action(
+        event,
+        globals.config["digital_twin_name"],
+      )
+    else:
+      raise ValueError(f"Unsupported event_actions action: {action['action']}")
 
   def info(self):
     for event in globals.config_events:
