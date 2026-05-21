@@ -1,4 +1,5 @@
 from deployers.base import Deployer
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import content_changed
 from deployers.aws.core.plan_actions import plan_action
 import deployment_state
@@ -42,6 +43,16 @@ class InitValuesDeployer(Deployer):
         device_ids.append(iot_device_id)
 
     return device_ids
+
+  def _iot_device_by_id(self, iot_devices, iot_device_id):
+    for iot_device in iot_devices:
+      if iot_device["id"] == iot_device_id:
+        return iot_device
+
+    return None
+
+  def _has_init_values(self, iot_device):
+    return any("initValue" in prop for prop in iot_device.get("properties", []))
 
   def plan(self):
     previous_init_values_by_device_id = self._init_values_by_device_id(
@@ -98,39 +109,57 @@ class InitValuesDeployer(Deployer):
 
     return actions
 
-  def _post_init_values_to_iot_core(self):
+  def _post_iot_device_init_values_to_iot_core(self, iot_device):
     topic = globals.dispatcher_iot_rule_topic()
 
+    if not self._has_init_values(iot_device):
+      return
+
+    payload = {
+      "iotDeviceId": iot_device["id"],
+      "time": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+    }
+
+    for property in iot_device["properties"]:
+      payload[property["name"]] = property.get("initValue", None)
+
+    globals.aws_iot_data_client.publish(
+        topic=topic,
+        qos=1,
+        payload=json.dumps(payload).encode("utf-8")
+    )
+
+    self.log(f"Posted init values for IoT device id: {iot_device['id']}")
+
+  def _post_init_values_to_iot_core(self, iot_device_id=None):
+    if iot_device_id is not None:
+      iot_device = self._iot_device_by_id(globals.config_iot_devices, iot_device_id)
+
+      if iot_device is None:
+        raise ValueError(f"IoT device config not found for init values: {iot_device_id}")
+
+      self._post_iot_device_init_values_to_iot_core(iot_device)
+      return
+
     for iot_device in globals.config_iot_devices:
-      has_init = any("initValue" in prop for prop in iot_device["properties"])
-      print("HAS Init .................................")
-      print(has_init)
-      if not has_init:
-        continue
-
-      payload = {
-        "iotDeviceId": iot_device["id"],
-        "time": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
-      }
-
-      for property in iot_device["properties"]:
-        print("PROPERTY: ", property)
-        payload[property["name"]] = property.get("initValue", None)
-
-      globals.aws_iot_data_client.publish(
-          topic=topic,
-          qos=1,
-          payload=json.dumps(payload).encode("utf-8")
-      )
-
-      self.log(f"Posted init values for IoT device id: {iot_device["id"]}")
+      self._post_iot_device_init_values_to_iot_core(iot_device)
 
 
-  def deploy(self):
-    self._post_init_values_to_iot_core()
+  def deploy(self, iot_device_id=None):
+    self._post_init_values_to_iot_core(iot_device_id)
 
   def destroy(self):
     pass
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      raise ValueError(
+        "Init values are runtime data and cannot be removed by InitValuesDeployer"
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported init_values action: {action['action']}")
 
   def info(self):
     pass
