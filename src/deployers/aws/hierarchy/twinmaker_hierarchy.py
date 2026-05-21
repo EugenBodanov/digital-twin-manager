@@ -1,4 +1,5 @@
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import content_changed
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
@@ -28,9 +29,17 @@ class TwinmakerHierarchyDeployer(Deployer):
     return root_ids
 
 
-  def _deploy_twinmaker_entity(self, entity_info, parent_info=None):
+  def _root_entity(self, hierarchy, entity_id):
+    entity = self._root_entities_by_id(hierarchy).get(entity_id)
+
+    if entity is None:
+      raise ValueError(f"TwinMaker Hierarchy root entity not found: {entity_id}")
+
+    return entity
+
+  def _deploy_twinmaker_entity(self, entity_info, workspace_name, parent_info=None):
     create_entity_params = {
-      "workspaceId": globals.twinmaker_workspace_name(),
+      "workspaceId": workspace_name,
       "entityName": entity_info.get("name") or entity_info["id"],
       "entityId": entity_info["id"],
     }
@@ -44,18 +53,18 @@ class TwinmakerHierarchyDeployer(Deployer):
 
     for child in entity_info["children"]:
       if child["type"] == "entity":
-        self._deploy_twinmaker_entity(child, entity_info)
+        self._deploy_twinmaker_entity(child, workspace_name, entity_info)
       elif child["type"] == "component":
-        self._deploy_twinmaker_component(child, entity_info)
+        self._deploy_twinmaker_component(child, entity_info, workspace_name)
 
-  def _deploy_twinmaker_component(self, component_info, parent_info):
+  def _deploy_twinmaker_component(self, component_info, parent_info, workspace_name):
     if "componentTypeId" in component_info:
       component_type_id = component_info["componentTypeId"]
     else:
       component_type_id = f"{globals.config["digital_twin_name"]}-{component_info["iotDeviceId"]}"
 
     globals.aws_twinmaker_client.update_entity(
-      workspaceId=globals.twinmaker_workspace_name(),
+      workspaceId=workspace_name,
       entityId=parent_info["id"],
       componentUpdates={
           component_info["name"]: {
@@ -123,15 +132,34 @@ class TwinmakerHierarchyDeployer(Deployer):
     return actions
 
 
-  def deploy(self):
-    for entity in globals.config_hierarchy:
-      self._deploy_twinmaker_entity(entity)
+  def deploy(self, entity_id=None, hierarchy=None, workspace_name=None):
+    if hierarchy is None:
+      hierarchy = globals.config_hierarchy
 
-  def destroy(self):
-    workspace_name = globals.twinmaker_workspace_name()
+    workspace_name = workspace_name or globals.twinmaker_workspace_name()
+
+    if entity_id is not None:
+      self._deploy_twinmaker_entity(
+        self._root_entity(hierarchy, entity_id),
+        workspace_name,
+      )
+      return
+
+    for entity in hierarchy:
+      self._deploy_twinmaker_entity(entity, workspace_name)
+
+  def destroy(self, entity_id=None, hierarchy=None, workspace_name=None):
+    if hierarchy is None:
+      hierarchy = globals.config_hierarchy
+
+    workspace_name = workspace_name or globals.twinmaker_workspace_name()
+
+    if entity_id is not None:
+      hierarchy = [self._root_entity(hierarchy, entity_id)]
+
     deleting_entities = []
 
-    for entity in globals.config_hierarchy:
+    for entity in hierarchy:
       try:
         globals.aws_twinmaker_client.delete_entity(workspaceId=workspace_name, entityId=entity["id"], isRecursive=True)
         deleting_entities.append(entity)
@@ -151,6 +179,22 @@ class TwinmakerHierarchyDeployer(Deployer):
             raise
 
       self.log(f"Deleted IoT TwinMaker Entity: {entity["id"]}")
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(
+        entity_id=resource,
+        hierarchy=deployment_state.last_applied_config_hierarchy,
+        workspace_name=deployment_state.last_applied_twinmaker_workspace_name(),
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(
+        entity_id=resource,
+        hierarchy=globals.config_hierarchy,
+        workspace_name=globals.twinmaker_workspace_name(),
+      )
+    else:
+      raise ValueError(f"Unsupported hierarchy action: {action['action']}")
 
   def info(self, hierarchy=None, parent=None):
     workspace_name = globals.twinmaker_workspace_name()
