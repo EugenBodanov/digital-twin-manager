@@ -5,6 +5,12 @@ class AllDeployer(Deployer):
   def log(self, message):
     print(f"Init Values: {message}")
 
+  def plan(self):
+    return [{
+      "layer": "init_values",
+      "actions": InitValuesDeployer().plan()
+    }]
+
   def deploy(self):
     InitValuesDeployer().deploy()
 

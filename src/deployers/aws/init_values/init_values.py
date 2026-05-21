@@ -1,4 +1,7 @@
 from deployers.base import Deployer
+from deployers.aws.core.json_helpers import content_changed
+from deployers.aws.core.plan_actions import plan_action
+import deployment_state
 import globals
 from datetime import datetime, timezone
 import json
@@ -7,6 +10,93 @@ class InitValuesDeployer(Deployer):
   def log(self, message):
     print(f"Init Values: {message}")
 
+  def _init_values_by_device_id(self, iot_devices):
+    init_values_by_device_id = {}
+
+    for iot_device in iot_devices:
+      properties = iot_device.get("properties", [])
+
+      if not any("initValue" in property for property in properties):
+        continue
+
+      iot_device_id = iot_device["id"]
+
+      if iot_device_id in init_values_by_device_id:
+        raise ValueError(f"Duplicate IoT device id for init values: {iot_device_id}")
+
+      init_values_by_device_id[iot_device_id] = {
+        property["name"]: property.get("initValue", None)
+        for property in properties
+      }
+
+    return init_values_by_device_id
+
+  def _ordered_device_ids(self, previous_init_values_by_device_id, desired_init_values_by_device_id):
+    device_ids = []
+
+    for iot_device_id in previous_init_values_by_device_id:
+      device_ids.append(iot_device_id)
+
+    for iot_device_id in desired_init_values_by_device_id:
+      if iot_device_id not in device_ids:
+        device_ids.append(iot_device_id)
+
+    return device_ids
+
+  def plan(self):
+    previous_init_values_by_device_id = self._init_values_by_device_id(
+      deployment_state.last_applied_config_iot_devices
+    )
+    desired_init_values_by_device_id = self._init_values_by_device_id(
+      globals.config_iot_devices
+    )
+
+    actions = []
+
+    for iot_device_id in self._ordered_device_ids(
+      previous_init_values_by_device_id,
+      desired_init_values_by_device_id
+    ):
+      previous_init_values = previous_init_values_by_device_id.get(iot_device_id)
+      desired_init_values = desired_init_values_by_device_id.get(iot_device_id)
+
+      if previous_init_values is None:
+        self.log(f"Init values for IoT device {iot_device_id} are new.")
+        actions.append(
+          plan_action(iot_device_id, "init_value", action="DEPLOY")
+        )
+        continue
+
+      if desired_init_values is None:
+        self.log(
+          f"Init values for IoT device {iot_device_id} were removed from config."
+        )
+        actions.append(
+          plan_action(
+            iot_device_id,
+            "init_value",
+            action="DESTROY",
+            blocked=True,
+            blockers=[
+              "Init values are runtime data and cannot be removed by InitValuesDeployer"
+            ],
+          )
+        )
+        continue
+
+      if not content_changed(previous_init_values, desired_init_values):
+        self.log(f"Init values for IoT device {iot_device_id} are up to date.")
+        actions.append(
+          plan_action(iot_device_id, "init_value")
+        )
+        continue
+
+      self.log(f"Init values for IoT device {iot_device_id} have changed.")
+      actions.append(
+        plan_action(iot_device_id, "init_value", action="DEPLOY")
+      )
+
+    return actions
 
   def _post_init_values_to_iot_core(self):
     topic = globals.dispatcher_iot_rule_topic()
