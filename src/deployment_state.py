@@ -274,10 +274,64 @@ def save_last_applied_config_state():
   return copied_paths
 
 
-def save_plan_actions(actions):
+def save_plan(plan):
   os.makedirs(state_dir_path(), exist_ok=True)
-  _write_json(state_plan_file_path(), actions)
+  _write_json(state_plan_file_path(), plan)
   return state_plan_file_path()
+
+def _validate_plan(plan):
+  for group_entry in plan:
+    if "group" not in group_entry or "layers" not in group_entry:
+      raise ValueError("Invalid plan format.")
+
+    for layer_entry in group_entry["layers"]:
+      if "layer" not in layer_entry or "actions" not in layer_entry:
+        raise ValueError("Invalid plan format.")
+
+
+def load_plan():
+  if os.path.isfile(state_plan_file_path()):
+    plan = _read_json(state_plan_file_path())
+    _validate_plan(plan)
+    return plan
+
+  return []
+
+
+def iter_plan_actions(plan):
+  for group_entry in plan:
+    group_name = group_entry["group"]
+
+    for layer_entry in group_entry["layers"]:
+      layer_name = layer_entry["layer"]
+
+      for action in layer_entry["actions"]:
+        yield group_name, layer_name, action
+
+
+def mark_plan_action_processed(group_name, layer_name, matching_action):
+  plan = load_plan()
+
+  for current_group_name, current_layer_name, action in iter_plan_actions(plan):
+    if current_group_name != group_name or current_layer_name != layer_name:
+      continue
+
+    if (
+      action.get("resource") == matching_action.get("resource")
+      and action.get("resource_type") == matching_action.get("resource_type")
+      and action.get("action") == matching_action.get("action")
+    ):
+      action["processed"] = True
+      _write_json(state_plan_file_path(), plan)
+      return
+
+  raise ValueError(
+    "Plan action not found: "
+    f"{group_name}/{layer_name}/"
+    f"{matching_action.get('resource_type')}/"
+    f"{matching_action.get('resource')}/"
+    f"{matching_action.get('action')}"
+  )
 
 
 def last_applied_processor_iam_role_name(iot_device):

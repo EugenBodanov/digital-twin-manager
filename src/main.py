@@ -4,6 +4,7 @@ import deployers.aws.iot.all
 import deployers.aws.hierarchy.all
 import deployers.aws.event_actions.all
 import deployers.aws.init_values.all
+import deployers.aws.all
 import deployment_state
 import sanity_checker
 
@@ -14,6 +15,7 @@ def help_menu():
       destroy                      - Destroys core and IoT services and resources.
       info                         - Lists all the deployed resources.
       plan                         - Plans core resource changes without modifying AWS.
+      apply                        - Loads and sorts saved plan actions for apply.
       init-state                   - Copies current deploy config files into redeployment state.
       help                         - Show this help menu.
       exit                         - Exit the program.
@@ -82,15 +84,26 @@ def main():
       elif command == "plan":
         sanity_checker.check()
 
-        actions = []
+        plan_groups = [deployers.aws.core.all.AllDeployer().plan(), deployers.aws.iot.all.AllDeployer().plan(),
+                       deployers.aws.hierarchy.all.AllDeployer().plan(),
+                       deployers.aws.event_actions.all.AllDeployer().plan(),
+                       deployers.aws.init_values.all.AllDeployer().plan()]
 
-        actions.extend(deployers.aws.core.all.AllDeployer().plan())
-        actions.extend(deployers.aws.iot.all.AllDeployer().plan())
-        actions.extend(deployers.aws.hierarchy.all.AllDeployer().plan())
-        actions.extend(deployers.aws.event_actions.all.AllDeployer().plan())
-        actions.extend(deployers.aws.init_values.all.AllDeployer().plan())
-        plan_path = deployment_state.save_plan_actions(actions)
+        plan_path = deployment_state.save_plan(plan_groups)
         print(f"Plan saved to: {plan_path}")
+
+      elif command == "apply":
+        plan = deployment_state.load_plan()
+
+        if not plan:
+          print("No saved plan found. Run 'plan' first.")
+          continue
+
+        print(f"Loaded plan from: {deployment_state.state_plan_file_path()}")
+        deployers.aws.all.AllDeployer().apply(plan)
+        deployment_state.save_last_applied_config_state()
+        print(f"State configs saved to: {deployment_state.state_config_dir_path()}")
+        
 
       elif command == "init-state":
         sanity_checker.check()

@@ -37,6 +37,51 @@ class TwinmakerHierarchyDeployer(Deployer):
 
     return entity
 
+  def _configured_iot_device_ids(self):
+    return {
+      iot_device["id"]
+      for iot_device in globals.config_iot_devices
+    }
+
+  def _collect_missing_iot_device_ids_for_components(
+    self,
+    entity_info,
+    configured_iot_device_ids,
+    missing_iot_device_ids,
+  ):
+    for child in entity_info.get("children", []):
+      if child["type"] == "entity":
+        self._collect_missing_iot_device_ids_for_components(
+          child,
+          configured_iot_device_ids,
+          missing_iot_device_ids,
+        )
+      elif child["type"] == "component" and "componentTypeId" not in child:
+        iot_device_id = child.get("iotDeviceId")
+
+        if iot_device_id not in configured_iot_device_ids:
+          missing_iot_device_ids.add(iot_device_id)
+
+  def _validate_component_type_sources(self, hierarchy):
+    configured_iot_device_ids = self._configured_iot_device_ids()
+    missing_iot_device_ids = set()
+
+    for entity in hierarchy:
+      self._collect_missing_iot_device_ids_for_components(
+        entity,
+        configured_iot_device_ids,
+        missing_iot_device_ids,
+      )
+
+    if missing_iot_device_ids:
+      missing_ids = ", ".join(sorted(missing_iot_device_ids))
+      raise ValueError(
+        "Hierarchy references IoT device id(s) that are missing from "
+        f"config_iot_devices.json: {missing_ids}. "
+        "TwinMaker component types are deployed from config_iot_devices before "
+        "hierarchy is applied."
+      )
+
   def _deploy_twinmaker_entity(self, entity_info, workspace_name, parent_info=None):
     create_entity_params = {
       "workspaceId": workspace_name,
@@ -137,6 +182,7 @@ class TwinmakerHierarchyDeployer(Deployer):
       hierarchy = globals.config_hierarchy
 
     workspace_name = workspace_name or globals.twinmaker_workspace_name()
+    self._validate_component_type_sources(hierarchy)
 
     if entity_id is not None:
       self._deploy_twinmaker_entity(
