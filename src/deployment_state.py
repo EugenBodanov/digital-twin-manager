@@ -10,6 +10,7 @@ STATE_VERSION = 1
 STATE_DIR_NAME = ".digital-twin-manager-state"
 STATE_CONFIG_DIR_NAME = "configs"
 STATE_METADATA_FILE_NAME = "metadata.json"
+STATE_PLAN_FILE_NAME = "plan.json"
 
 STATE_CONFIG_FILE_NAMES = [
   "config.json",
@@ -35,6 +36,10 @@ def state_config_dir_path():
 
 def state_metadata_file_path():
   return os.path.join(state_dir_path(), STATE_METADATA_FILE_NAME)
+
+
+def state_plan_file_path():
+  return os.path.join(state_dir_path(), STATE_PLAN_FILE_NAME)
 
 
 def state_config_file_path(file_name):
@@ -267,6 +272,12 @@ def save_last_applied_config_state():
   _write_json(state_metadata_file_path(), _build_metadata())
   initialize_last_applied_config_state()
   return copied_paths
+
+
+def save_plan_actions(actions):
+  os.makedirs(state_dir_path(), exist_ok=True)
+  _write_json(state_plan_file_path(), actions)
+  return state_plan_file_path()
 
 
 def last_applied_processor_iam_role_name(iot_device):

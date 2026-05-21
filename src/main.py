@@ -89,6 +89,8 @@ def main():
         actions.extend(deployers.aws.hierarchy.all.AllDeployer().plan())
         actions.extend(deployers.aws.event_actions.all.AllDeployer().plan())
         actions.extend(deployers.aws.init_values.all.AllDeployer().plan())
+        plan_path = deployment_state.save_plan_actions(actions)
+        print(f"Plan saved to: {plan_path}")
 
       elif command == "init-state":
         sanity_checker.check()
