@@ -1,4 +1,5 @@
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import globals
@@ -31,11 +32,11 @@ class HotColdMoverEventRuleDeployer(Deployer):
       plan_action(desired_rule_name, "eventbridge_rule", action="DEPLOY"),
     ]
 
-  def deploy(self):
-    rule_name = globals.hot_cold_mover_event_rule_name()
+  def deploy(self, rule_name=None, function_name=None):
+    rule_name = rule_name or globals.hot_cold_mover_event_rule_name()
     schedule_expression = f"cron(0 12 * * ? *)"
 
-    function_name = globals.hot_cold_mover_lambda_function_name()
+    function_name = function_name or globals.hot_cold_mover_lambda_function_name()
 
     rule_response = globals.aws_events_client.put_rule(
       Name=rule_name,
@@ -71,9 +72,9 @@ class HotColdMoverEventRuleDeployer(Deployer):
 
     self.log(f"Added permission to Lambda function so the rule can invoke the function.")
 
-  def destroy(self):
-    rule_name = globals.hot_cold_mover_event_rule_name()
-    function_name = globals.hot_cold_mover_lambda_function_name()
+  def destroy(self, rule_name=None, function_name=None):
+    rule_name = rule_name or globals.hot_cold_mover_event_rule_name()
+    function_name = function_name or globals.hot_cold_mover_lambda_function_name()
 
     try:
       globals.aws_lambda_client.remove_permission(FunctionName=function_name, StatementId="events-invoke")
@@ -109,3 +110,14 @@ class HotColdMoverEventRuleDeployer(Deployer):
         self.log(f"❌ Hot to Cold Mover EventBridge Rule missing: {rule_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(
+        rule_name=resource,
+        function_name=deployment_state.last_applied_hot_cold_mover_lambda_function_name(),
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l3_hot action: {action['action']}")

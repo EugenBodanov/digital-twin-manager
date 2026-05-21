@@ -1,4 +1,5 @@
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import globals
@@ -35,8 +36,8 @@ class ArchiveS3BucketDeployer(Deployer):
       plan_action(desired_bucket_name, "s3_bucket", action="DEPLOY")
     ]
 
-  def deploy(self):
-    bucket_name = globals.archive_s3_bucket_name()
+  def deploy(self, bucket_name=None):
+    bucket_name = bucket_name or globals.archive_s3_bucket_name()
 
     globals.aws_s3_client.create_bucket(
       Bucket=bucket_name,
@@ -47,8 +48,8 @@ class ArchiveS3BucketDeployer(Deployer):
 
     self.log(f"Created S3 Bucket: {bucket_name}")
 
-  def destroy(self):
-    bucket_name = globals.archive_s3_bucket_name()
+  def destroy(self, bucket_name=None):
+    bucket_name = bucket_name or globals.archive_s3_bucket_name()
 
     if util.destroy_s3_bucket(bucket_name):
       self.log(f"Deleted S3 bucket: {bucket_name}")
@@ -64,3 +65,11 @@ class ArchiveS3BucketDeployer(Deployer):
         self.log(f"❌ Archive S3 Bucket missing: {bucket_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l3_archive action: {action['action']}")

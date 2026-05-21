@@ -61,6 +61,7 @@ class PlannedAction(TypedDict):
     required_flags: list[str]
     blockers: list[str]
     state_sync_required: bool
+    processed: bool
 
 
 class PlannedActionValues(TypedDict, total=False):
@@ -85,6 +86,7 @@ def plan_action(
         "required_flags": [],
         "blockers": [],
         "state_sync_required": False,
+        "processed": False,
     }
 
     action.update(values)

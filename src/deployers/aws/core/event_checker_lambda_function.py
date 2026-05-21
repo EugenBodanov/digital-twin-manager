@@ -1,4 +1,5 @@
 from deployers.base import Deployer
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 import json
 import os
@@ -46,9 +47,9 @@ class EventCheckerLambdaFunctionDeployer(Deployer):
       plan_action(desired_function_name, "lambda_function", action="DEPLOY"),
     ]
 
-  def deploy(self):
-    function_name = globals.event_checker_lambda_function_name()
-    role_name = globals.event_checker_iam_role_name()
+  def deploy(self, function_name=None, role_name=None):
+    function_name = function_name or globals.event_checker_lambda_function_name()
+    role_name = role_name or globals.event_checker_iam_role_name()
 
     response = globals.aws_iam_client.get_role(RoleName=role_name)
     role_arn = response["Role"]["Arn"]
@@ -84,8 +85,8 @@ class EventCheckerLambdaFunctionDeployer(Deployer):
 
     self.log(f"Created Lambda function: {function_name}")
 
-  def destroy(self):
-    function_name = globals.event_checker_lambda_function_name()
+  def destroy(self, function_name=None):
+    function_name = function_name or globals.event_checker_lambda_function_name()
 
     try:
       globals.aws_lambda_client.delete_function(FunctionName=function_name)
@@ -105,3 +106,11 @@ class EventCheckerLambdaFunctionDeployer(Deployer):
         self.log(f"❌ Event-Checker Lambda Function missing: {function_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l2 action: {action['action']}")

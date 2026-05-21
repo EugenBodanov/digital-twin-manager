@@ -9,7 +9,10 @@ from deployers.aws.core.lambda_chain_step_function import LambdaChainStepFunctio
 from deployers.aws.core.persister_iam_role import PersisterIamRoleDeployer
 from deployers.aws.core.persister_lambda_function import PersisterLambdaFunctionDeployer
 from deployers.aws.core.plan_actions import sort_actions_for_apply
+from deployers.aws.apply_actions import pending_actions
 from deployers.base import Deployer
+import deployment_state
+import globals
 
 class L2Deployer(Deployer):
   def log(self, message):
@@ -50,6 +53,79 @@ class L2Deployer(Deployer):
       self.DESTROY_ORDER,
       self.DEPLOY_ORDER,
     )
+
+  def _resource_matches(self, resource, previous_resource, desired_resource):
+    return resource in [previous_resource, desired_resource]
+
+  def apply(self, layer_plan, action_name):
+    layer_name = layer_plan["layer"]
+    actions = pending_actions(layer_plan["actions"], action_name)
+
+    if not actions:
+      return
+
+    actions = self.sort_actions_for_apply(actions)
+
+    for action in actions:
+      resource_type = action["resource_type"]
+      resource = action["resource"]
+
+      if (
+        resource_type == "iam"
+        and self._resource_matches(resource, deployment_state.last_applied_persister_iam_role_name(), globals.persister_iam_role_name())
+      ):
+        PersisterIamRoleDeployer().apply(action, resource)
+      elif (
+        resource_type == "lambda_function"
+        and self._resource_matches(resource, deployment_state.last_applied_persister_lambda_function_name(), globals.persister_lambda_function_name())
+      ):
+        PersisterLambdaFunctionDeployer().apply(action, resource)
+      elif (
+        resource_type == "iam"
+        and self._resource_matches(resource, deployment_state.last_applied_event_feedback_iam_role_name(), globals.event_feedback_iam_role_name())
+      ):
+        EventFeedbackIamRoleDeployer().apply(action, resource)
+      elif (
+        resource_type == "lambda_function"
+        and self._resource_matches(resource, deployment_state.last_applied_event_feedback_lambda_function_name(), globals.event_feedback_lambda_function_name())
+      ):
+        EventFeedbackLambdaFunctionDeployer().apply(action, resource)
+      elif (
+        resource_type == "iam"
+        and self._resource_matches(resource, deployment_state.last_applied_event_checker_iam_role_name(), globals.event_checker_iam_role_name())
+      ):
+        EventCheckerIamRoleDeployer().apply(action, resource)
+      elif (
+        resource_type == "lambda_function"
+        and self._resource_matches(resource, deployment_state.last_applied_event_checker_lambda_function_name(), globals.event_checker_lambda_function_name())
+      ):
+        EventCheckerLambdaFunctionDeployer().apply(action, resource)
+      elif (
+        resource_type == "iam"
+        and self._resource_matches(resource, deployment_state.last_applied_lambda_chain_iam_role_name(), globals.lambda_chain_iam_role_name())
+      ):
+        LambdaChainIamRoleDeployer().apply(action, resource)
+      elif (
+        resource_type == "step_function"
+        and self._resource_matches(resource, deployment_state.last_applied_lambda_chain_step_function_name(), globals.lambda_chain_step_function_name())
+      ):
+        LambdaChainStepFunctionDeployer().apply(action, resource)
+      elif (
+        resource_type == "iam"
+        and self._resource_matches(resource, deployment_state.last_applied_event_registry_register_iam_role_name(), globals.event_registry_register_iam_role_name())
+      ):
+        EventRegistryRegisterIamRoleDeployer().apply(action, resource)
+      elif (
+        resource_type == "lambda_function"
+        and self._resource_matches(resource, deployment_state.last_applied_event_registry_register_lambda_function_name(), globals.event_registry_register_lambda_function_name())
+      ):
+        EventRegistryRegisterLambdaFunctionDeployer().apply(action, resource)
+      else:
+        raise ValueError(
+          f"No core_l2 apply handler for {resource_type}/{resource}"
+        )
+
+      deployment_state.mark_plan_action_processed("core", layer_name, action)
 
   def deploy(self):
     PersisterIamRoleDeployer().deploy()

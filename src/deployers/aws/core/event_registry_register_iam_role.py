@@ -1,4 +1,5 @@
 from deployers.base import Deployer
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 import json
 import time
@@ -28,8 +29,8 @@ class EventRegistryRegisterIamRoleDeployer(Deployer):
             plan_action(desired_role_name, "iam", action="DEPLOY"),
         ]
 
-    def deploy(self):
-        role_name = globals.event_registry_register_iam_role_name()
+    def deploy(self, role_name=None):
+        role_name = role_name or globals.event_registry_register_iam_role_name()
 
         globals.aws_iam_client.create_role(
             RoleName=role_name,
@@ -64,8 +65,8 @@ class EventRegistryRegisterIamRoleDeployer(Deployer):
         self.log("Waiting for IAM propagation...")
         time.sleep(20)
 
-    def destroy(self):
-        role_name = globals.event_registry_register_iam_role_name()
+    def destroy(self, role_name=None):
+        role_name = role_name or globals.event_registry_register_iam_role_name()
         try:
             for p in globals.aws_iam_client.list_attached_role_policies(RoleName=role_name)["AttachedPolicies"]:
                 globals.aws_iam_client.detach_role_policy(RoleName=role_name, PolicyArn=p["PolicyArn"])
@@ -87,3 +88,11 @@ class EventRegistryRegisterIamRoleDeployer(Deployer):
                 self.log(f"❌ IAM Role missing: {role_name}")
             else:
                 raise
+
+    def apply(self, action, resource):
+        if action["action"] == ACTION_DESTROY:
+            self.destroy(resource)
+        elif action["action"] == ACTION_DEPLOY:
+            self.deploy(resource)
+        else:
+            raise ValueError(f"Unsupported core_l2 action: {action['action']}")

@@ -1,4 +1,5 @@
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import json
@@ -27,8 +28,8 @@ class ColdArchiveMoverIamRoleDeployer(Deployer):
       plan_action(desired_role_name, "iam", action="DEPLOY"),
     ]
 
-  def deploy(self):
-    role_name = globals.cold_archive_mover_iam_role_name()
+  def deploy(self, role_name=None):
+    role_name = role_name or globals.cold_archive_mover_iam_role_name()
 
     globals.aws_iam_client.create_role(
         RoleName=role_name,
@@ -67,8 +68,8 @@ class ColdArchiveMoverIamRoleDeployer(Deployer):
 
     time.sleep(20)
 
-  def destroy(self):
-    role_name = globals.cold_archive_mover_iam_role_name()
+  def destroy(self, role_name=None):
+    role_name = role_name or globals.cold_archive_mover_iam_role_name()
 
     try:
       response = globals.aws_iam_client.list_attached_role_policies(RoleName=role_name)
@@ -103,3 +104,11 @@ class ColdArchiveMoverIamRoleDeployer(Deployer):
         self.log(f"❌ Cold to Archive Mover IAM Role missing: {role_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l3_cold action: {action['action']}")

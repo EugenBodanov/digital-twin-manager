@@ -1,4 +1,5 @@
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 from datetime import datetime, timezone
@@ -27,8 +28,8 @@ class HotDynamodbTableDeployer(Deployer):
       plan_action(desired_table_name, "dynamodb_table", action="DEPLOY"),
     ]
 
-  def deploy(self):
-    table_name = globals.hot_dynamodb_table_name()
+  def deploy(self, table_name=None):
+    table_name = table_name or globals.hot_dynamodb_table_name()
 
     globals.aws_dynamodb_client.create_table(
       TableName=table_name,
@@ -50,8 +51,8 @@ class HotDynamodbTableDeployer(Deployer):
 
     self.log(f"Created DynamoDb table: {table_name}")
 
-  def destroy(self):
-    table_name = globals.hot_dynamodb_table_name()
+  def destroy(self, table_name=None):
+    table_name = table_name or globals.hot_dynamodb_table_name()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     backup_name = f"{table_name}-backup-{timestamp}"
 
@@ -96,3 +97,11 @@ class HotDynamodbTableDeployer(Deployer):
         self.log(f"❌ DynamoDb Table missing: {table_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l3_hot action: {action['action']}")

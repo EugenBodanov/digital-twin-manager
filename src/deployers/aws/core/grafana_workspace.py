@@ -1,4 +1,5 @@
 from deployers.base import Deployer
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 import deployment_state
 import json
@@ -53,9 +54,9 @@ class GrafanaWorkspaceDeployer(Deployer):
       ),
     ]
 
-  def deploy(self):
-    workspace_name = globals.grafana_workspace_name()
-    role_name = globals.grafana_iam_role_name()
+  def deploy(self, workspace_name=None, role_name=None):
+    workspace_name = workspace_name or globals.grafana_workspace_name()
+    role_name = role_name or globals.grafana_iam_role_name()
 
     response = globals.aws_iam_client.get_role(RoleName=role_name)
     role_arn = response["Role"]["Arn"]
@@ -95,8 +96,8 @@ class GrafanaWorkspaceDeployer(Deployer):
     self.log(f"Created Grafana workspace: {workspace_name}")
     self.log(f"Grafana login: https://{response["workspace"]["endpoint"]}")
 
-  def destroy(self):
-    workspace_name = globals.grafana_workspace_name()
+  def destroy(self, workspace_name=None):
+    workspace_name = workspace_name or globals.grafana_workspace_name()
 
     try:
       workspace_id = util.get_grafana_workspace_id_by_name(workspace_name)
@@ -134,3 +135,11 @@ class GrafanaWorkspaceDeployer(Deployer):
         self.log(f"❌ Grafana Workspace missing: {workspace_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l5 action: {action['action']}")

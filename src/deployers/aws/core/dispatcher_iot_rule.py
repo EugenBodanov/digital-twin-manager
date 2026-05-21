@@ -1,3 +1,4 @@
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.base import Deployer
 from deployers.aws.core.aws_arns import iot_rule_arn, lambda_function_arn
 from deployers.aws.core.lambda_permission import LambdaPermissionPlanner
@@ -116,12 +117,12 @@ class DispatcherIotRuleDeployer(Deployer):
       plan_action(desired_rule_name, "iot_rule")
     ]
 
-  def deploy(self):
-    rule_name = globals.dispatcher_iot_rule_name()
-    topic = globals.dispatcher_iot_rule_topic()
+  def deploy(self, rule_name=None, topic=None, function_name=None):
+    rule_name = rule_name or globals.dispatcher_iot_rule_name()
+    topic = topic or globals.dispatcher_iot_rule_topic()
     sql = f"SELECT * FROM '{topic}'"
 
-    function_name = globals.dispatcher_lambda_function_name()
+    function_name = function_name or globals.dispatcher_lambda_function_name()
 
     globals.aws_iot_client.create_topic_rule(
       ruleName=rule_name,
@@ -145,9 +146,9 @@ class DispatcherIotRuleDeployer(Deployer):
 
     self.log(f"Added permission to Lambda function so the rule can invoke the function.")
 
-  def destroy(self):
-    function_name = globals.dispatcher_lambda_function_name()
-    rule_name = globals.dispatcher_iot_rule_name()
+  def destroy(self, rule_name=None, function_name=None):
+    function_name = function_name or globals.dispatcher_lambda_function_name()
+    rule_name = rule_name or globals.dispatcher_iot_rule_name()
 
     try:
       globals.aws_lambda_client.remove_permission(
@@ -176,3 +177,14 @@ class DispatcherIotRuleDeployer(Deployer):
         self.log(f"❌ Dispatcher IoT Rule missing: {rule_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(
+        rule_name=resource,
+        function_name=deployment_state.last_applied_dispatcher_lambda_function_name(),
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l1 action: {action['action']}")

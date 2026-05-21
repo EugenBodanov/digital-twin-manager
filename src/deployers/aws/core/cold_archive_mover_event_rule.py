@@ -1,4 +1,5 @@
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import globals
@@ -28,9 +29,9 @@ class ColdArchiveMoverEventRuleDeployer(Deployer):
       plan_action(desired_rule_name, "eventbridge_rule", action="DEPLOY"),
     ]
 
-  def deploy(self):
-    rule_name = globals.cold_archive_mover_event_rule_name()
-    function_name = globals.cold_archive_mover_lambda_function_name()
+  def deploy(self, rule_name=None, function_name=None):
+    rule_name = rule_name or globals.cold_archive_mover_event_rule_name()
+    function_name = function_name or globals.cold_archive_mover_lambda_function_name()
 
     schedule_expression = f"cron(0 18 * * ? *)"
 
@@ -62,9 +63,9 @@ class ColdArchiveMoverEventRuleDeployer(Deployer):
 
     self.log(f"Added permission to Lambda Function so the rule can invoke the function.")
 
-  def destroy(self):
-    rule_name = globals.cold_archive_mover_event_rule_name()
-    function_name = globals.cold_archive_mover_lambda_function_name()
+  def destroy(self, rule_name=None, function_name=None):
+    rule_name = rule_name or globals.cold_archive_mover_event_rule_name()
+    function_name = function_name or globals.cold_archive_mover_lambda_function_name()
 
     try:
       globals.aws_lambda_client.remove_permission(FunctionName=function_name, StatementId="events-invoke")
@@ -100,3 +101,14 @@ class ColdArchiveMoverEventRuleDeployer(Deployer):
         self.log(f"❌ Cold to Archive Mover EventBridge Rule missing: {rule_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(
+        rule_name=resource,
+        function_name=deployment_state.last_applied_cold_archive_mover_lambda_function_name(),
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l3_cold action: {action['action']}")

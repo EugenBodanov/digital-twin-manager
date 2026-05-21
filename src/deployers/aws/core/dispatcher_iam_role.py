@@ -1,3 +1,4 @@
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.base import Deployer
 from deployers.aws.core.json_helpers import normalized_json
 from deployers.aws.core.plan_actions import plan_action
@@ -90,8 +91,8 @@ class DispatcherIamRoleDeployer(Deployer):
     ]
 
 
-  def deploy(self):
-    role_name = globals.dispatcher_iam_role_name()
+  def deploy(self, role_name=None):
+    role_name = role_name or globals.dispatcher_iam_role_name()
 
     globals.aws_iam_client.create_role(
         RoleName=role_name,
@@ -114,8 +115,8 @@ class DispatcherIamRoleDeployer(Deployer):
 
     time.sleep(20)
 
-  def destroy(self):
-    role_name = globals.dispatcher_iam_role_name()
+  def destroy(self, role_name=None):
+    role_name = role_name or globals.dispatcher_iam_role_name()
 
     try:
       response = globals.aws_iam_client.list_attached_role_policies(RoleName=role_name)
@@ -150,3 +151,11 @@ class DispatcherIamRoleDeployer(Deployer):
         self.log(f"❌ Dispatcher IAM Role missing: {role_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l1 action: {action['action']}")

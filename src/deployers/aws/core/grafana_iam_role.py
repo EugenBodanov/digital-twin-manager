@@ -1,4 +1,5 @@
 from deployers.base import Deployer
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 import deployment_state
 import json
@@ -27,8 +28,8 @@ class GrafanaIamRoleDeployer(Deployer):
       plan_action(desired_role_name, "iam", action="DEPLOY"),
     ]
 
-  def deploy(self):
-    role_name = globals.grafana_iam_role_name()
+  def deploy(self, role_name=None):
+    role_name = role_name or globals.grafana_iam_role_name()
 
     response = globals.aws_iam_client.create_role(
         RoleName=role_name,
@@ -120,8 +121,8 @@ class GrafanaIamRoleDeployer(Deployer):
     self.log(f"Waiting for propagation...")
     time.sleep(20)
 
-  def destroy(self):
-    role_name = globals.grafana_iam_role_name()
+  def destroy(self, role_name=None):
+    role_name = role_name or globals.grafana_iam_role_name()
 
     try:
       response = globals.aws_iam_client.list_attached_role_policies(RoleName=role_name)
@@ -156,3 +157,11 @@ class GrafanaIamRoleDeployer(Deployer):
         self.log(f"❌ Grafana IAM Role missing: {role_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l5 action: {action['action']}")

@@ -1,4 +1,5 @@
 from deployers.base import Deployer
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 import json
 import time
@@ -36,9 +37,9 @@ class LambdaChainStepFunctionDeployer(Deployer):
       plan_action(desired_step_function_name, "step_function", action="DEPLOY"),
     ]
 
-  def deploy(self):
-    sf_name = globals.lambda_chain_step_function_name()
-    role_name = globals.lambda_chain_iam_role_name()
+  def deploy(self, sf_name=None, role_name=None):
+    sf_name = sf_name or globals.lambda_chain_step_function_name()
+    role_name = role_name or globals.lambda_chain_iam_role_name()
 
     response = globals.aws_iam_client.get_role(RoleName=role_name)
     role_arn = response["Role"]["Arn"]
@@ -79,8 +80,8 @@ class LambdaChainStepFunctionDeployer(Deployer):
 
     self.log(f"Created Step Function: {sf_name}")
 
-  def destroy(self):
-    sf_name = globals.lambda_chain_step_function_name()
+  def destroy(self, sf_name=None):
+    sf_name = sf_name or globals.lambda_chain_step_function_name()
     region = globals.aws_lambda_client.meta.region_name
     account_id = globals.aws_sts_client.get_caller_identity()['Account']
     sf_arn = f"arn:aws:states:{region}:{account_id}:stateMachine:{sf_name}"
@@ -120,3 +121,11 @@ class LambdaChainStepFunctionDeployer(Deployer):
         self.log(f"❌ Lambda-Chain Step Function missing: {sf_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l2 action: {action['action']}")

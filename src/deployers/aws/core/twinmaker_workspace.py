@@ -1,4 +1,5 @@
 from deployers.base import Deployer
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 import deployment_state
 import time
@@ -55,10 +56,10 @@ class TwinmakerWorkspaceDeployer(Deployer):
       ),
     ]
 
-  def deploy(self):
-    workspace_name = globals.twinmaker_workspace_name()
-    role_name = globals.twinmaker_iam_role_name()
-    bucket_name = globals.twinmaker_s3_bucket_name()
+  def deploy(self, workspace_name=None, role_name=None, bucket_name=None):
+    workspace_name = workspace_name or globals.twinmaker_workspace_name()
+    role_name = role_name or globals.twinmaker_iam_role_name()
+    bucket_name = bucket_name or globals.twinmaker_s3_bucket_name()
 
     account_id = globals.aws_sts_client.get_caller_identity()['Account']
 
@@ -71,8 +72,8 @@ class TwinmakerWorkspaceDeployer(Deployer):
 
     self.log(f"Created IoT TwinMaker workspace: {workspace_name}")
 
-  def destroy(self):
-    workspace_name = globals.twinmaker_workspace_name()
+  def destroy(self, workspace_name=None):
+    workspace_name = workspace_name or globals.twinmaker_workspace_name()
 
     try:
       response = globals.aws_twinmaker_client.list_entities(workspaceId=workspace_name)
@@ -154,3 +155,11 @@ class TwinmakerWorkspaceDeployer(Deployer):
         self.log(f"❌ Twinmaker Workspace missing: {workspace_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l4 action: {action['action']}")
