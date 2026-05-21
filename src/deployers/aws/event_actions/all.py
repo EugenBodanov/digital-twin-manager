@@ -5,6 +5,12 @@ class AllDeployer(Deployer):
   def log(self, message):
     print(f"Event Actions: {message}")
 
+  def plan(self):
+    return [{
+      "layer": "event_actions",
+      "actions": LambdaActionsDeployer().plan()
+    }]
+
   def deploy(self):
     LambdaActionsDeployer().deploy()
 

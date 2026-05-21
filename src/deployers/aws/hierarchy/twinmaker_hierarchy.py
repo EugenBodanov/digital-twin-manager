@@ -1,5 +1,5 @@
 import deployment_state
-from deployers.aws.core.json_helpers import normalized_json
+from deployers.aws.core.json_helpers import content_changed
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import time
@@ -26,9 +26,6 @@ class TwinmakerHierarchyDeployer(Deployer):
         root_ids.append(entity["id"])
 
     return root_ids
-
-  def _root_changed(self, previous_root, desired_root):
-    return normalized_json(previous_root) != normalized_json(desired_root)
 
 
   def _deploy_twinmaker_entity(self, entity_info, parent_info=None):
@@ -101,7 +98,7 @@ class TwinmakerHierarchyDeployer(Deployer):
 
       if (
         previous_workspace_name == desired_workspace_name
-        and not self._root_changed(previous_entity, desired_entity)
+        and not content_changed(previous_entity, desired_entity)
       ):
         self.log(f"TwinMaker Hierarchy root entity {entity_id} is up to date.")
         actions.append(
@@ -115,7 +112,7 @@ class TwinmakerHierarchyDeployer(Deployer):
           f"{previous_workspace_name} to {desired_workspace_name}."
         )
 
-      if self._root_changed(previous_entity, desired_entity):
+      if content_changed(previous_entity, desired_entity):
         self.log(f"TwinMaker Hierarchy root entity {entity_id} has changed.")
 
       actions.extend([

@@ -87,6 +87,7 @@ def main():
         actions.extend(deployers.aws.core.all.AllDeployer().plan())
         actions.extend(deployers.aws.iot.all.AllDeployer().plan())
         actions.extend(deployers.aws.hierarchy.all.AllDeployer().plan())
+        actions.extend(deployers.aws.event_actions.all.AllDeployer().plan())
 
       elif command == "init-state":
         sanity_checker.check()

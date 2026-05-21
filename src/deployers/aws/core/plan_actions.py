@@ -30,6 +30,7 @@ PlanResourceType = Literal[
     "twinmaker_component_type",
     "twinmaker_hierarchy",
     "twinmaker_workspace",
+    "event_action",
 ]
 
 
