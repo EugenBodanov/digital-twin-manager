@@ -1,4 +1,5 @@
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import json
@@ -46,8 +47,8 @@ class ProcessorIamRoleDeployer(Deployer):
       plan_action(desired_role_name, "iam", action="DEPLOY"),
     ]
 
-  def deploy(self, iot_device):
-    role_name = globals.processor_iam_role_name(iot_device)
+  def deploy(self, iot_device, role_name=None):
+    role_name = role_name or globals.processor_iam_role_name(iot_device)
 
     globals.aws_iam_client.create_role(
         RoleName=role_name,
@@ -86,8 +87,8 @@ class ProcessorIamRoleDeployer(Deployer):
 
     time.sleep(10)
 
-  def destroy(self, iot_device):
-    role_name = globals.processor_iam_role_name(iot_device)
+  def destroy(self, iot_device, role_name=None):
+    role_name = role_name or globals.processor_iam_role_name(iot_device)
 
     try:
       response = globals.aws_iam_client.list_attached_role_policies(RoleName=role_name)
@@ -122,3 +123,11 @@ class ProcessorIamRoleDeployer(Deployer):
         self.log(f"❌ Processor {role_name} IAM Role missing: {role_name}")
       else:
         raise
+
+  def apply(self, action, iot_device, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(iot_device, role_name=resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(iot_device, role_name=resource)
+    else:
+      raise ValueError(f"Unsupported iot_l2 action: {action['action']}")

@@ -1,4 +1,5 @@
 import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import json
@@ -74,10 +75,10 @@ class ProcessorLambdaFunctionDeployer(Deployer):
       plan_action(desired_function_name, "lambda_function", action="DEPLOY"),
     ]
 
-  def deploy(self, iot_device):
-    function_name = globals.processor_lambda_function_name(iot_device)
+  def deploy(self, iot_device, function_name=None, role_name=None):
+    function_name = function_name or globals.processor_lambda_function_name(iot_device)
     function_name_local = globals.processor_lambda_function_name_local(iot_device)
-    role_name = globals.processor_iam_role_name(iot_device)
+    role_name = role_name or globals.processor_iam_role_name(iot_device)
 
     response = globals.aws_iam_client.get_role(RoleName=role_name)
     role_arn = response["Role"]["Arn"]
@@ -107,8 +108,8 @@ class ProcessorLambdaFunctionDeployer(Deployer):
 
     self.log(f"Created Lambda function: {function_name}")
 
-  def destroy(self, iot_device):
-    function_name = globals.processor_lambda_function_name(iot_device)
+  def destroy(self, iot_device, function_name=None):
+    function_name = function_name or globals.processor_lambda_function_name(iot_device)
 
     try:
       globals.aws_lambda_client.delete_function(FunctionName=function_name)
@@ -128,3 +129,18 @@ class ProcessorLambdaFunctionDeployer(Deployer):
         self.log(f"❌ Processor {function_name} Lambda Function missing: {function_name}")
       else:
         raise
+
+  def apply(self, action, iot_device, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(
+        iot_device,
+        function_name=resource,
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(
+        iot_device,
+        function_name=resource,
+        role_name=globals.processor_iam_role_name(iot_device),
+      )
+    else:
+      raise ValueError(f"Unsupported iot_l2 action: {action['action']}")

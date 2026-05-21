@@ -1,4 +1,5 @@
 from deployers.aws.core.plan_actions import plan_action
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.base import Deployer
 import globals
 import deployment_state
@@ -100,10 +101,16 @@ class TwinmakerComponentTypeDeployer(Deployer):
     ]
 
 
-  def deploy(self, iot_device):
-    connector_function_name = globals.hot_reader_lambda_function_name()
-    workspace_name = globals.twinmaker_workspace_name()
-    component_type_id = globals.twinmaker_component_type_id(iot_device)
+  def deploy(
+    self,
+    iot_device,
+    component_type_id=None,
+    workspace_name=None,
+    connector_function_name=None,
+  ):
+    connector_function_name = connector_function_name or globals.hot_reader_lambda_function_name()
+    workspace_name = workspace_name or globals.twinmaker_workspace_name()
+    component_type_id = component_type_id or globals.twinmaker_component_type_id(iot_device)
 
     response = globals.aws_lambda_client.get_function(FunctionName=connector_function_name)
     connector_function_arn = response["Configuration"]["FunctionArn"]
@@ -148,9 +155,9 @@ class TwinmakerComponentTypeDeployer(Deployer):
 
     self.log(f"Created IoT Twinmaker Component Type: {component_type_id}")
 
-  def destroy(self, iot_device):
-    workspace_name = globals.twinmaker_workspace_name()
-    component_type_id = globals.twinmaker_component_type_id(iot_device)
+  def destroy(self, iot_device, component_type_id=None, workspace_name=None):
+    workspace_name = workspace_name or globals.twinmaker_workspace_name()
+    component_type_id = component_type_id or globals.twinmaker_component_type_id(iot_device)
 
     try:
       globals.aws_twinmaker_client.get_component_type(workspaceId=workspace_name, componentTypeId=component_type_id)
@@ -218,3 +225,20 @@ class TwinmakerComponentTypeDeployer(Deployer):
         self.log(f"❌ Twinmaker Component Type {component_type_id} missing: {component_type_id}")
       else:
         raise
+
+  def apply(self, action, iot_device, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(
+        iot_device,
+        component_type_id=resource,
+        workspace_name=deployment_state.last_applied_twinmaker_workspace_name(),
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(
+        iot_device,
+        component_type_id=resource,
+        workspace_name=globals.twinmaker_workspace_name(),
+        connector_function_name=globals.hot_reader_lambda_function_name(),
+      )
+    else:
+      raise ValueError(f"Unsupported iot_l4 action: {action['action']}")

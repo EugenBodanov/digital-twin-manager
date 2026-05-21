@@ -1,4 +1,5 @@
 from deployers.aws.core.plan_actions import plan_action
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.base import Deployer
 import json
 import globals
@@ -58,9 +59,9 @@ class IotThingDeployer(Deployer):
       plan_action(desired_thing_name, "iot_thing", action="DEPLOY"),
     ]
 
-  def deploy(self, iot_device):
-    thing_name = globals.iot_thing_name(iot_device)
-    policy_name = globals.iot_thing_policy_name(iot_device)
+  def deploy(self, iot_device, thing_name=None, policy_name=None):
+    thing_name = thing_name or globals.iot_thing_name(iot_device)
+    policy_name = policy_name or globals.iot_thing_policy_name(iot_device)
 
     globals.aws_iot_client.create_thing(thingName=thing_name)
     self.log(f"Created IoT Thing: {thing_name}")
@@ -99,9 +100,9 @@ class IotThingDeployer(Deployer):
     globals.aws_iot_client.attach_policy(policyName=policy_name, target=certificate_arn)
     self.log(f"Attached IoT Policy to Certificate")
 
-  def destroy(self, iot_device):
-    thing_name = globals.iot_thing_name(iot_device)
-    policy_name = globals.iot_thing_policy_name(iot_device)
+  def destroy(self, iot_device, thing_name=None, policy_name=None):
+    thing_name = thing_name or globals.iot_thing_name(iot_device)
+    policy_name = policy_name or globals.iot_thing_policy_name(iot_device)
 
     try:
       principals_resp = globals.aws_iot_client.list_thing_principals(thingName=thing_name)
@@ -172,3 +173,19 @@ class IotThingDeployer(Deployer):
         self.log(f"❌ IoT Thing {thing_name} missing: {thing_name}")
       else:
         raise
+
+  def apply(self, action, iot_device, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(
+        iot_device,
+        thing_name=resource,
+        policy_name=deployment_state.last_applied_iot_thing_policy_name(iot_device),
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(
+        iot_device,
+        thing_name=resource,
+        policy_name=globals.iot_thing_policy_name(iot_device),
+      )
+    else:
+      raise ValueError(f"Unsupported iot_l1 action: {action['action']}")
