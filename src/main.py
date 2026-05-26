@@ -21,6 +21,24 @@ def help_menu():
       exit                         - Exit the program.
   """)
 
+
+def _print_missing_state_help(error):
+  print(error)
+  print(
+    "Start with 'init-state' if the AWS resources already exist, "
+    "or 'deploy' if this is a fresh deployment."
+  )
+
+
+def _try_initialize_last_applied_config_state():
+  try:
+    deployment_state.initialize_last_applied_config_state()
+    return True
+  except FileNotFoundError as error:
+    _print_missing_state_help(error)
+    return False
+
+
 def main():
     globals.initialize_config()
     globals.initialize_config_iot_devices()
@@ -39,7 +57,7 @@ def main():
     globals.initialize_aws_logs_client()
     globals.initialize_aws_sf_client()
     globals.initialize_aws_iot_data_client()
-    deployment_state.initialize_last_applied_config_state()
+    _try_initialize_last_applied_config_state()
 
     print("Welcome to the Digital Twin Manager. Type 'help' for commands.")
 
@@ -83,6 +101,8 @@ def main():
 
       elif command == "plan":
         sanity_checker.check()
+        if not _try_initialize_last_applied_config_state():
+          continue
 
         plan_groups = [deployers.aws.core.all.AllDeployer().plan(), deployers.aws.iot.all.AllDeployer().plan(),
                        deployers.aws.hierarchy.all.AllDeployer().plan(),
@@ -93,6 +113,9 @@ def main():
         print(f"Plan saved to: {plan_path}")
 
       elif command == "apply":
+        if not _try_initialize_last_applied_config_state():
+          continue
+
         plan = deployment_state.load_plan()
 
         if not plan:
