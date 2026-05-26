@@ -1,4 +1,8 @@
-from deployers.aws.iot.device_reconciliation import reconciled_iot_devices
+from deployers.aws.iot.device_reconciliation import (
+  desired_iot_devices,
+  previous_iot_devices,
+  reconciled_iot_devices,
+)
 from deployers.aws.iot.twinmaker_component_type import TwinmakerComponentTypeDeployer
 from deployers.aws.apply_actions import pending_actions
 from deployers.base import Deployer
@@ -22,12 +26,12 @@ class L4Deployer(Deployer):
     resource = action["resource"]
 
     if action["action"] == "DESTROY":
-      for iot_device in deployment_state.last_applied_config_iot_devices:
+      for iot_device in previous_iot_devices():
         if deployment_state.last_applied_twinmaker_component_type_id(iot_device) == resource:
           return iot_device
 
     if action["action"] == "DEPLOY":
-      for iot_device in globals.config_iot_devices:
+      for iot_device in desired_iot_devices():
         if globals.twinmaker_component_type_id(iot_device) == resource:
           return iot_device
 
@@ -60,13 +64,13 @@ class L4Deployer(Deployer):
       deployment_state.mark_plan_action_processed("iot", layer_name, action)
 
   def deploy(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       TwinmakerComponentTypeDeployer().deploy(iot_device)
 
   def destroy(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       TwinmakerComponentTypeDeployer().destroy(iot_device)
 
   def info(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       TwinmakerComponentTypeDeployer().info(iot_device)

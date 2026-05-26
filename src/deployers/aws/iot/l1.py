@@ -1,5 +1,9 @@
 from deployers.aws.iot.iot_thing import IotThingDeployer
-from deployers.aws.iot.device_reconciliation import reconciled_iot_devices
+from deployers.aws.iot.device_reconciliation import (
+  desired_iot_devices,
+  previous_iot_devices,
+  reconciled_iot_devices,
+)
 from deployers.aws.apply_actions import pending_actions
 from deployers.base import Deployer
 import deployment_state
@@ -22,12 +26,12 @@ class L1Deployer(Deployer):
     resource = action["resource"]
 
     if action["action"] == "DESTROY":
-      for iot_device in deployment_state.last_applied_config_iot_devices:
+      for iot_device in previous_iot_devices():
         if deployment_state.last_applied_iot_thing_name(iot_device) == resource:
           return iot_device
 
     if action["action"] == "DEPLOY":
-      for iot_device in globals.config_iot_devices:
+      for iot_device in desired_iot_devices():
         if globals.iot_thing_name(iot_device) == resource:
           return iot_device
 
@@ -58,13 +62,13 @@ class L1Deployer(Deployer):
       deployment_state.mark_plan_action_processed("iot", layer_name, action)
 
   def deploy(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       IotThingDeployer().deploy(iot_device)
 
   def destroy(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       IotThingDeployer().destroy(iot_device)
 
   def info(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       IotThingDeployer().info(iot_device)

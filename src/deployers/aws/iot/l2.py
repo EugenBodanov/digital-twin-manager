@@ -1,5 +1,9 @@
 from deployers.aws.core.plan_actions import PlanResourceType, sort_actions_for_apply
-from deployers.aws.iot.device_reconciliation import reconciled_iot_devices
+from deployers.aws.iot.device_reconciliation import (
+  desired_iot_devices,
+  previous_iot_devices,
+  reconciled_iot_devices,
+)
 from deployers.aws.iot.processor_iam_role import ProcessorIamRoleDeployer
 from deployers.aws.iot.processor_lambda_function import ProcessorLambdaFunctionDeployer
 from deployers.aws.apply_actions import pending_actions
@@ -43,21 +47,21 @@ class L2Deployer(Deployer):
 
     if action["action"] == "DESTROY":
       if resource_type == "lambda_function":
-        for iot_device in deployment_state.last_applied_config_iot_devices:
+        for iot_device in previous_iot_devices():
           if deployment_state.last_applied_processor_lambda_function_name(iot_device) == resource:
             return iot_device
       elif resource_type == "iam":
-        for iot_device in deployment_state.last_applied_config_iot_devices:
+        for iot_device in previous_iot_devices():
           if deployment_state.last_applied_processor_iam_role_name(iot_device) == resource:
             return iot_device
 
     if action["action"] == "DEPLOY":
       if resource_type == "lambda_function":
-        for iot_device in globals.config_iot_devices:
+        for iot_device in desired_iot_devices():
           if globals.processor_lambda_function_name(iot_device) == resource:
             return iot_device
       elif resource_type == "iam":
-        for iot_device in globals.config_iot_devices:
+        for iot_device in desired_iot_devices():
           if globals.processor_iam_role_name(iot_device) == resource:
             return iot_device
 
@@ -98,16 +102,16 @@ class L2Deployer(Deployer):
       deployment_state.mark_plan_action_processed("iot", layer_name, action)
 
   def deploy(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       ProcessorIamRoleDeployer().deploy(iot_device)
       ProcessorLambdaFunctionDeployer().deploy(iot_device)
 
   def destroy(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       ProcessorLambdaFunctionDeployer().destroy(iot_device)
       ProcessorIamRoleDeployer().destroy(iot_device)
 
   def info(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       ProcessorIamRoleDeployer().info(iot_device)
       ProcessorLambdaFunctionDeployer().info(iot_device)

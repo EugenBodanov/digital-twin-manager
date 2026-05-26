@@ -1,0 +1,65 @@
+TREE_NODE_TYPES = ("entity", "component")
+COMPONENT_INSTANCE_KEYS = ("type", "name", "iotDeviceId", "componentTypeId", "children")
+
+
+def _is_tree_node(entry):
+  return entry.get("type") in TREE_NODE_TYPES
+
+
+def _is_flat_iot_device(entry):
+  return "id" in entry and not _is_tree_node(entry)
+
+
+def _iot_device_from_component(component):
+  iot_device = {
+    key: value
+    for key, value in component.items()
+    if key not in COMPONENT_INSTANCE_KEYS
+  }
+  iot_device["id"] = component["iotDeviceId"]
+  iot_device.setdefault("properties", [])
+  return iot_device
+
+
+def _add_iot_device(iot_devices, iot_devices_by_id, iot_device):
+  iot_device_id = iot_device["id"]
+  existing_iot_device = iot_devices_by_id.get(iot_device_id)
+
+  if existing_iot_device is not None:
+    if existing_iot_device != iot_device:
+      raise ValueError(f"Duplicate IoT device id with different config: {iot_device_id}")
+
+    return
+
+  iot_devices_by_id[iot_device_id] = iot_device
+  iot_devices.append(iot_device)
+
+
+def _collect_iot_devices(entry, iot_devices, iot_devices_by_id):
+  if isinstance(entry, list):
+    for child in entry:
+      _collect_iot_devices(child, iot_devices, iot_devices_by_id)
+    return
+
+  if not isinstance(entry, dict):
+    return
+
+  if _is_flat_iot_device(entry):
+    _add_iot_device(iot_devices, iot_devices_by_id, dict(entry))
+    return
+
+  if entry.get("type") == "component" and entry.get("iotDeviceId") is not None:
+    _add_iot_device(
+      iot_devices,
+      iot_devices_by_id,
+      _iot_device_from_component(entry),
+    )
+
+  _collect_iot_devices(entry.get("children", []), iot_devices, iot_devices_by_id)
+
+
+def effective_iot_devices(config_iot_devices):
+  iot_devices = []
+  iot_devices_by_id = {}
+  _collect_iot_devices(config_iot_devices, iot_devices, iot_devices_by_id)
+  return iot_devices
