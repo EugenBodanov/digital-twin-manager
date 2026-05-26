@@ -1,12 +1,18 @@
 import deployment_state
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import content_changed
+from deployers.aws.iot.device_config import effective_iot_devices
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 import time
 import globals
 import util
 from botocore.exceptions import ClientError
+
+DELETE_POLL_SECONDS = 2
+DELETE_PROGRESS_LOG_SECONDS = 30
+DELETE_TIMEOUT_SECONDS = 60
+
 
 class TwinmakerHierarchyDeployer(Deployer):
   def log(self, message):
@@ -40,7 +46,7 @@ class TwinmakerHierarchyDeployer(Deployer):
   def _configured_iot_device_ids(self):
     return {
       iot_device["id"]
-      for iot_device in globals.config_iot_devices
+      for iot_device in effective_iot_devices(globals.config_iot_devices)
     }
 
   def _collect_missing_iot_device_ids_for_components(
@@ -81,6 +87,50 @@ class TwinmakerHierarchyDeployer(Deployer):
         "TwinMaker component types are deployed from config_iot_devices before "
         "hierarchy is applied."
       )
+
+  def _wait_until_entity_deleted(self, workspace_name, entity):
+    started_at = time.monotonic()
+    last_log_at = started_at
+
+    while True:
+      try:
+        response = globals.aws_twinmaker_client.get_entity(workspaceId=workspace_name, entityId=entity["id"])
+        elapsed_seconds = int(time.monotonic() - started_at)
+
+        if elapsed_seconds >= DELETE_TIMEOUT_SECONDS:
+          status = response.get("status", {})
+          state = status.get("state", "UNKNOWN")
+          error_message = status.get("error", {}).get("message")
+          details = f" Current state: {state}."
+
+          if error_message:
+            details += f" Error: {error_message}"
+
+          # raise TimeoutError(
+          #   f"Timed out waiting for IoT TwinMaker Entity deletion: {entity["id"]}."
+          #   f"{details}"
+          # )
+          self.log(f"Timed out waiting for IoT TwinMaker Entity deletion: {entity["id"]}. Details: {details}. Continue execution.")
+          break
+
+        now = time.monotonic()
+
+        if now - last_log_at >= DELETE_PROGRESS_LOG_SECONDS:
+          state = response.get("status", {}).get("state", "UNKNOWN")
+          self.log(
+            f"Still waiting for IoT TwinMaker Entity deletion: {entity["id"]} "
+            f"({elapsed_seconds}s, state: {state})"
+          )
+          last_log_at = now
+
+        time.sleep(DELETE_POLL_SECONDS)
+      except ClientError as e:
+        if e.response["Error"]["Code"] == "ResourceNotFoundException":
+          break
+        else:
+          raise
+
+    self.log(f"Deleted IoT TwinMaker Entity: {entity["id"]}")
 
   def _deploy_twinmaker_entity(self, entity_info, workspace_name, parent_info=None):
     create_entity_params = {
@@ -210,21 +260,20 @@ class TwinmakerHierarchyDeployer(Deployer):
         globals.aws_twinmaker_client.delete_entity(workspaceId=workspace_name, entityId=entity["id"], isRecursive=True)
         deleting_entities.append(entity)
       except ClientError as e:
-        if e.response["Error"]["Code"] != "ResourceNotFoundException":
-          raise
+        error = e.response["Error"]
+
+        if error["Code"] == "ResourceNotFoundException":
+          continue
+
+        if error["Code"] == "ValidationException" and "already in Deleting state" in error["Message"]:
+          self.log(f"IoT TwinMaker Entity deletion already in progress: {entity["id"]}")
+          deleting_entities.append(entity)
+          continue
+
+        raise
 
     for entity in deleting_entities:
-      while True:
-        try:
-          globals.aws_twinmaker_client.get_entity(workspaceId=workspace_name, entityId=entity["id"])
-          time.sleep(2)
-        except ClientError as e:
-          if e.response["Error"]["Code"] == "ResourceNotFoundException":
-            break
-          else:
-            raise
-
-      self.log(f"Deleted IoT TwinMaker Entity: {entity["id"]}")
+      self._wait_until_entity_deleted(workspace_name, entity)
 
   def apply(self, action, resource):
     if action["action"] == ACTION_DESTROY:
@@ -241,6 +290,7 @@ class TwinmakerHierarchyDeployer(Deployer):
       )
     else:
       raise ValueError(f"Unsupported hierarchy action: {action['action']}")
+
 
   def info(self, hierarchy=None, parent=None):
     workspace_name = globals.twinmaker_workspace_name()

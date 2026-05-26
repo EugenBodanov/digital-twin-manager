@@ -2,6 +2,7 @@ from deployers.base import Deployer
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import content_changed
 from deployers.aws.core.plan_actions import plan_action
+from deployers.aws.iot.device_config import effective_iot_devices
 import deployment_state
 import globals
 from datetime import datetime, timezone
@@ -56,10 +57,10 @@ class InitValuesDeployer(Deployer):
 
   def plan(self):
     previous_init_values_by_device_id = self._init_values_by_device_id(
-      deployment_state.last_applied_config_iot_devices
+      effective_iot_devices(deployment_state.last_applied_config_iot_devices)
     )
     desired_init_values_by_device_id = self._init_values_by_device_id(
-      globals.config_iot_devices
+      effective_iot_devices(globals.config_iot_devices)
     )
 
     actions = []
@@ -132,8 +133,10 @@ class InitValuesDeployer(Deployer):
     self.log(f"Posted init values for IoT device id: {iot_device['id']}")
 
   def _post_init_values_to_iot_core(self, iot_device_id=None):
+    iot_devices = effective_iot_devices(globals.config_iot_devices)
+
     if iot_device_id is not None:
-      iot_device = self._iot_device_by_id(globals.config_iot_devices, iot_device_id)
+      iot_device = self._iot_device_by_id(iot_devices, iot_device_id)
 
       if iot_device is None:
         raise ValueError(f"IoT device config not found for init values: {iot_device_id}")
@@ -141,7 +144,7 @@ class InitValuesDeployer(Deployer):
       self._post_iot_device_init_values_to_iot_core(iot_device)
       return
 
-    for iot_device in globals.config_iot_devices:
+    for iot_device in iot_devices:
       self._post_iot_device_init_values_to_iot_core(iot_device)
 
 
