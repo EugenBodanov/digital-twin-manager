@@ -21,12 +21,15 @@ class EventCheckerLambdaFunctionDeployer(Deployer):
     desired_lambda_chain_name = globals.lambda_chain_step_function_name()
     previous_event_feedback_function_name = deployment_state.last_applied_event_feedback_lambda_function_name()
     desired_event_feedback_function_name = globals.event_feedback_lambda_function_name()
+    previous_config_events = deployment_state.last_applied_config_events
+    desired_config_events = globals.config_events
 
     if (
       previous_function_name == desired_function_name
       and previous_role_name == desired_role_name
       and previous_lambda_chain_name == desired_lambda_chain_name
       and previous_event_feedback_function_name == desired_event_feedback_function_name
+      and previous_config_events == desired_config_events
     ):
       self.log(f"Event-Checker Lambda function {desired_function_name} is up to date.")
       return [
@@ -41,6 +44,8 @@ class EventCheckerLambdaFunctionDeployer(Deployer):
       self.log(f"Lambda Chain Step Function name changed from {previous_lambda_chain_name} to {desired_lambda_chain_name}.")
     if previous_event_feedback_function_name != desired_event_feedback_function_name:
       self.log(f"Event-Feedback Lambda function name changed from {previous_event_feedback_function_name} to {desired_event_feedback_function_name}.")
+    if previous_config_events != desired_config_events:
+      self.log("Event-Checker Lambda function config_events have changed.")
 
     return [
       plan_action(previous_function_name, "lambda_function", action="DESTROY"),
