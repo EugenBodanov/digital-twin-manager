@@ -4,6 +4,7 @@ import shutil
 from datetime import datetime, timezone
 
 import globals
+import resource_names
 
 
 STATE_VERSION = 1
@@ -46,11 +47,15 @@ def state_config_file_path(file_name):
   return os.path.join(state_config_dir_path(), file_name)
 
 
-def last_applied_digital_twin_name():
+def _last_applied_config_snapshot():
   if not last_applied_config:
     initialize_last_applied_config_state()
 
-  return last_applied_config["digital_twin_name"]
+  return last_applied_config
+
+
+def last_applied_digital_twin_name():
+  return resource_names.digital_twin_name(_last_applied_config_snapshot())
 
 
 def last_applied_digital_twin_info():
@@ -72,116 +77,132 @@ def last_applied_aws_region():
 
 
 def last_applied_dispatcher_iam_role_name():
-  return last_applied_digital_twin_name() + "-dispatcher"
+  return resource_names.dispatcher_iam_role_name(_last_applied_config_snapshot())
 
 
 def last_applied_dispatcher_lambda_function_name():
-  return last_applied_digital_twin_name() + "-dispatcher"
+  return resource_names.dispatcher_lambda_function_name(_last_applied_config_snapshot())
 
 
 def last_applied_dispatcher_iot_rule_name():
-  rule_name = last_applied_digital_twin_name() + "-trigger-dispatcher"
-  return rule_name.replace("-", "_")
+  return resource_names.dispatcher_iot_rule_name(_last_applied_config_snapshot())
 
 
 def last_applied_dispatcher_iot_rule_topic():
-  return last_applied_digital_twin_name() + "/iot-data"
+  return resource_names.dispatcher_iot_rule_topic(_last_applied_config_snapshot())
 
 def last_applied_persister_iam_role_name():
-  return last_applied_digital_twin_name() + "-persister"
+  return resource_names.persister_iam_role_name(_last_applied_config_snapshot())
 
 def last_applied_persister_lambda_function_name():
-  return last_applied_digital_twin_name() + "-persister"
+  return resource_names.persister_lambda_function_name(_last_applied_config_snapshot())
 
 def last_applied_hot_dynamodb_table_name():
-  return last_applied_digital_twin_name() + "-hot-iot-data"
+  return resource_names.hot_dynamodb_table_name(_last_applied_config_snapshot())
 
 def last_applied_event_feedback_iam_role_name():
-  return last_applied_digital_twin_name() + "-event-feedback"
+  return resource_names.event_feedback_iam_role_name(_last_applied_config_snapshot())
 
 
 def last_applied_event_feedback_lambda_function_name():
-  return last_applied_digital_twin_name() + "-event-feedback"
+  return resource_names.event_feedback_lambda_function_name(_last_applied_config_snapshot())
 
 
 def last_applied_event_checker_iam_role_name():
-  return last_applied_digital_twin_name() + "-event-checker"
+  return resource_names.event_checker_iam_role_name(_last_applied_config_snapshot())
 
 
 def last_applied_event_checker_lambda_function_name():
-  return last_applied_digital_twin_name() + "-event-checker"
+  return resource_names.event_checker_lambda_function_name(_last_applied_config_snapshot())
 
 
 def last_applied_lambda_chain_iam_role_name():
-  return last_applied_digital_twin_name() + "-lambda-chain"
+  return resource_names.lambda_chain_iam_role_name(_last_applied_config_snapshot())
 
 
 def last_applied_lambda_chain_step_function_name():
-  return last_applied_digital_twin_name() + "-lambda-chain"
+  return resource_names.lambda_chain_step_function_name(_last_applied_config_snapshot())
 
 
 def last_applied_event_registry_register_iam_role_name():
-  return last_applied_digital_twin_name() + "-event-registry-register"
+  return resource_names.event_registry_register_iam_role_name(
+    _last_applied_config_snapshot()
+  )
 
 
 def last_applied_event_registry_register_lambda_function_name():
-  return last_applied_digital_twin_name() + "-event-registry-register"
+  return resource_names.event_registry_register_lambda_function_name(
+    _last_applied_config_snapshot()
+  )
 
 def last_applied_hot_cold_mover_iam_role_name():
-  return last_applied_digital_twin_name() + "-hot-to-cold-mover"
+  return resource_names.hot_cold_mover_iam_role_name(_last_applied_config_snapshot())
 
 def last_applied_hot_cold_mover_lambda_function_name():
-  return last_applied_digital_twin_name() + "-hot-to-cold-mover"
+  return resource_names.hot_cold_mover_lambda_function_name(
+    _last_applied_config_snapshot()
+  )
 
 def last_applied_hot_cold_mover_event_rule_name():
-  return last_applied_digital_twin_name() + "-hot-to-cold-mover"
+  return resource_names.hot_cold_mover_event_rule_name(
+    _last_applied_config_snapshot()
+  )
 
 def last_applied_hot_reader_iam_role_name():
-  return last_applied_digital_twin_name() + "-hot-reader"
+  return resource_names.hot_reader_iam_role_name(_last_applied_config_snapshot())
 
 def last_applied_hot_reader_lambda_function_name():
-    return last_applied_digital_twin_name() + "-hot-reader"
+    return resource_names.hot_reader_lambda_function_name(_last_applied_config_snapshot())
 
 def last_applied_cold_s3_bucket_name():
-    return (last_applied_digital_twin_name() + "-cold-iot-data").lower()
+    return resource_names.cold_s3_bucket_name(_last_applied_config_snapshot())
 
 def last_applied_cold_archive_mover_iam_role_name():
-  return last_applied_digital_twin_name() + "-cold-to-archive-mover"
+  return resource_names.cold_archive_mover_iam_role_name(
+    _last_applied_config_snapshot()
+  )
 
 def last_applied_cold_archive_mover_lambda_function_name():
-  return last_applied_digital_twin_name() + "-cold-to-archive-mover"
+  return resource_names.cold_archive_mover_lambda_function_name(
+    _last_applied_config_snapshot()
+  )
 
 def last_applied_cold_archive_mover_event_rule_name():
-  return last_applied_digital_twin_name() + "-cold-to-archive-mover"
+  return resource_names.cold_archive_mover_event_rule_name(
+    _last_applied_config_snapshot()
+  )
 
 def last_applied_archive_s3_bucket_name():
-  return (last_applied_digital_twin_name() + "-archive-iot-data").lower()
+  return resource_names.archive_s3_bucket_name(_last_applied_config_snapshot())
 
 
 def last_applied_twinmaker_s3_bucket_name():
-  return (last_applied_digital_twin_name() + "-twinmaker").lower()
+  return resource_names.twinmaker_s3_bucket_name(_last_applied_config_snapshot())
 
 
 def last_applied_twinmaker_iam_role_name():
-  return last_applied_digital_twin_name() + "-twinmaker"
+  return resource_names.twinmaker_iam_role_name(_last_applied_config_snapshot())
 
 
 def last_applied_twinmaker_workspace_name():
-  return last_applied_digital_twin_name() + "-twinmaker"
+  return resource_names.twinmaker_workspace_name(_last_applied_config_snapshot())
 
 
 def last_applied_grafana_workspace_name():
-  return last_applied_digital_twin_name() + "-grafana"
+  return resource_names.grafana_workspace_name(_last_applied_config_snapshot())
 
 
 def last_applied_grafana_iam_role_name():
-  return last_applied_digital_twin_name() + "-grafana"
+  return resource_names.grafana_iam_role_name(_last_applied_config_snapshot())
 
 def last_applied_iot_thing_name(iot_device):
-  return last_applied_digital_twin_name() + "-" + iot_device["id"]
+  return resource_names.iot_thing_name(_last_applied_config_snapshot(), iot_device)
 
 def last_applied_iot_thing_policy_name(iot_device):
-  return last_applied_digital_twin_name() + "-" + iot_device["id"]
+  return resource_names.iot_thing_policy_name(
+    _last_applied_config_snapshot(),
+    iot_device,
+  )
 
 def _read_json(path):
   with open(path, "r") as file:
@@ -335,14 +356,23 @@ def mark_plan_action_processed(group_name, layer_name, matching_action):
 
 
 def last_applied_processor_iam_role_name(iot_device):
-    return last_applied_digital_twin_name() + "-" + iot_device["id"] + "-processor"
+    return resource_names.processor_iam_role_name(
+      _last_applied_config_snapshot(),
+      iot_device,
+    )
 
 def last_applied_processor_lambda_function_name_local(iot_device):
-  return iot_device["id"]
+  return resource_names.processor_lambda_function_name_local(iot_device)
 
 def last_applied_processor_lambda_function_name(iot_device):
-  return last_applied_digital_twin_name() + "-" + last_applied_processor_lambda_function_name_local(iot_device) + "-processor"
+  return resource_names.processor_lambda_function_name(
+    _last_applied_config_snapshot(),
+    iot_device,
+  )
 
 
 def last_applied_twinmaker_component_type_id(iot_device):
-  return last_applied_digital_twin_name() + "-" + iot_device["id"]
+  return resource_names.twinmaker_component_type_id(
+    _last_applied_config_snapshot(),
+    iot_device,
+  )

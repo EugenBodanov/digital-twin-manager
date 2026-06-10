@@ -1,4 +1,5 @@
 import deployment_state
+import resource_names
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import content_changed
 from deployers.aws.iot.device_config import effective_iot_devices
@@ -156,7 +157,10 @@ class TwinmakerHierarchyDeployer(Deployer):
     if "componentTypeId" in component_info:
       component_type_id = component_info["componentTypeId"]
     else:
-      component_type_id = f"{globals.config["digital_twin_name"]}-{component_info["iotDeviceId"]}"
+      component_type_id = resource_names.twinmaker_component_type_id_from_device_id(
+        globals.config,
+        str(component_info["iotDeviceId"]),
+      )
 
     globals.aws_twinmaker_client.update_entity(
       workspaceId=workspace_name,
@@ -330,7 +334,12 @@ class TwinmakerHierarchyDeployer(Deployer):
         if "componentTypeId" in entry:
           entry_component_type_id = entry["componentTypeId"]
         else:
-          entry_component_type_id = f"{globals.config["digital_twin_name"]}-{entry["iotDeviceId"]}"
+          entry_component_type_id = (
+            resource_names.twinmaker_component_type_id_from_device_id(
+              globals.config,
+              str(entry["iotDeviceId"]),
+            )
+          )
 
         if component_info["componentTypeId"] != entry_component_type_id:
           self.log(f"❌ IoT TwinMaker Component {entry["name"]} has the wrong component type: {component_info["componentTypeId"]}")

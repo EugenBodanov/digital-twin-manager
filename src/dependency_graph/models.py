@@ -50,3 +50,26 @@ class TemplateGraph:
   version: int
   templates: tuple[TemplateNode, ...]
 
+
+@dataclass(frozen=True)
+class RuntimeDependency:
+  id: str
+  template_id: str
+  type: DependencyType
+
+
+@dataclass(frozen=True)
+class RuntimeNode:
+  id: str
+  template_id: str
+  owner_deployer: str
+  logical_name: str
+  physical_name: str | None
+  depends_on: tuple[RuntimeDependency, ...]
+  lifecycle_artifact: bool = False
+
+
+@dataclass(frozen=True)
+class RuntimeGraph:
+  version: int
+  nodes: tuple[RuntimeNode, ...]

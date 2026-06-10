@@ -1,6 +1,5 @@
-import hashlib
-
 import deployment_state
+import resource_names
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import normalized_json, content_changed
 from deployers.aws.core.plan_actions import plan_action
@@ -131,19 +130,7 @@ class LambdaActionsDeployer(Deployer):
         raise
 
   def _root_event_id(self, event: dict) -> str:
-    payload = json.dumps(
-      event,
-      sort_keys=True,
-      separators=(",", ":"),
-    )
-
-    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
-
-    action = event.get("action", {})
-    action_type = action.get("type", "unknown")
-    function_name = action.get("functionName", "unknown")
-
-    return f"{action_type}:{function_name}:{digest}"
+    return resource_names.event_action_id(event)
 
   def _root_events_by_id(self, actions: list[dict]) -> dict[str, dict]:
     events_by_id = {}
@@ -182,7 +169,10 @@ class LambdaActionsDeployer(Deployer):
   def _event_action_resource_names(self, event: dict, digital_twin_name: str):
     event_action = event["action"]
     function_name = event_action["functionName"]
-    resource_name = f"{digital_twin_name}-{function_name}"
+    resource_name = resource_names.resource_name_from_digital_twin_name(
+      digital_twin_name,
+      function_name,
+    )
     return resource_name, resource_name
 
   def _deploy_event_action(self, event: dict, digital_twin_name: str):
@@ -261,11 +251,11 @@ class LambdaActionsDeployer(Deployer):
 
   def deploy(self):
     for event in globals.config_events:
-      self._deploy_event_action(event, globals.config["digital_twin_name"])
+      self._deploy_event_action(event, resource_names.digital_twin_name(globals.config))
 
   def destroy(self):
     for event in globals.config_events:
-      self._destroy_event_action(event, globals.config["digital_twin_name"])
+      self._destroy_event_action(event, resource_names.digital_twin_name(globals.config))
 
   def apply(self, action, resource):
     if action["action"] == ACTION_DESTROY:
@@ -284,7 +274,7 @@ class LambdaActionsDeployer(Deployer):
       )
       self._deploy_event_action(
         event,
-        globals.config["digital_twin_name"],
+        resource_names.digital_twin_name(globals.config),
       )
     else:
       raise ValueError(f"Unsupported event_actions action: {action['action']}")
