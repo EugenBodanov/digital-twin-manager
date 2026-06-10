@@ -11,6 +11,7 @@ event_action_lfs_path = "lambda_functions/event_actions"
 config = {}
 config_iot_devices = []
 config_credentials = {}
+config_providers = {}
 
 aws_iam_client = {}
 aws_lambda_client = {}
@@ -48,6 +49,11 @@ def initialize_config_hierarchy():
   global config_hierarchy
   with open(f"{project_path()}/config_hierarchy.json", "r") as file:
     config_hierarchy = json.load(file)
+
+def initialize_config_providers():
+  global config_providers
+  with open(f"{project_path()}/config_providers.json", "r") as file:
+    config_providers = json.load(file)
 
 def initialize_config_credentials():
   global config_credentials

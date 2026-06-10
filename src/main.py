@@ -7,6 +7,7 @@ import deployers.aws.init_values.all
 import deployers.aws.all
 import deployment_state
 import sanity_checker
+import validation
 
 def help_menu():
   print("""
@@ -45,6 +46,15 @@ def main():
     globals.initialize_config_credentials()
     globals.initialize_config_events()
     globals.initialize_config_hierarchy()
+    globals.initialize_config_providers()
+    validation.validate_all_configs(
+      globals.config,
+      globals.config_credentials,
+      globals.config_events,
+      globals.config_hierarchy,
+      globals.config_iot_devices,
+      globals.config_providers,
+    )
     globals.initialize_aws_iam_client()
     globals.initialize_aws_lambda_client()
     globals.initialize_aws_iot_client()
