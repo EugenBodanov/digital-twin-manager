@@ -2,6 +2,7 @@ import deployment_state
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import globals
 from botocore.exceptions import ClientError
@@ -21,30 +22,62 @@ class ProcessorIamRoleDeployer(Deployer):
       globals.processor_iam_role_name(desired_iot_device)
       if desired_iot_device else None
     )
+    previous_graph_id = (
+      plan_graph_ids.processor_iam(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_graph_id = (
+      plan_graph_ids.processor_iam(desired_iot_device)
+      if desired_iot_device else None
+    )
 
     if previous_iot_device is None:
       self.log(f"IAM role {desired_role_name} is new.")
       return [
-        plan_action(desired_role_name, "iam", action="DEPLOY"),
+        plan_action(
+          desired_role_name,
+          "iam",
+          action="DEPLOY",
+          graph_id=desired_graph_id,
+        ),
       ]
 
     if desired_iot_device is None:
       self.log(f"IAM role {previous_role_name} was removed from config.")
       return [
-        plan_action(previous_role_name, "iam", action="DESTROY"),
+        plan_action(
+          previous_role_name,
+          "iam",
+          action="DESTROY",
+          graph_id=previous_graph_id,
+        ),
       ]
 
     if previous_role_name == desired_role_name:
       self.log(f"IAM role {desired_role_name} is up to date.")
       return [
-        plan_action(desired_role_name, "iam"),
+        plan_action(
+          desired_role_name,
+          "iam",
+          graph_id=desired_graph_id,
+        ),
       ]
 
     self.log(f"IAM role name has changed from {previous_role_name} to {desired_role_name}")
 
     return [
-      plan_action(previous_role_name, "iam", action="DESTROY"),
-      plan_action(desired_role_name, "iam", action="DEPLOY"),
+      plan_action(
+        previous_role_name,
+        "iam",
+        action="DESTROY",
+        graph_id=previous_graph_id,
+      ),
+      plan_action(
+        desired_role_name,
+        "iam",
+        action="DEPLOY",
+        graph_id=desired_graph_id,
+      ),
     ]
 
   def deploy(self, iot_device, role_name=None):

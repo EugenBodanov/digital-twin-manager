@@ -2,6 +2,7 @@ import deployment_state
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import time
 import globals
@@ -18,10 +19,29 @@ class PersisterIamRoleDeployer(Deployer):
 
     if previous_role_name == desired_role_name:
       self.log(f"Persister IAM Role {previous_role_name} is up-to-date")
-      return [ plan_action(desired_role_name, "iam") ]
+      return [
+        plan_action(
+          desired_role_name,
+          "iam",
+          graph_id=plan_graph_ids.PERSISTER_IAM,
+        )
+      ]
 
     self.log(f"Persister IAM Role will be updated from {previous_role_name} to {desired_role_name}")
-    return [ plan_action(previous_role_name, "iam", action="DESTROY"), plan_action(desired_role_name, "iam", action="DEPLOY") ]
+    return [
+      plan_action(
+        previous_role_name,
+        "iam",
+        action="DESTROY",
+        graph_id=plan_graph_ids.PERSISTER_IAM,
+      ),
+      plan_action(
+        desired_role_name,
+        "iam",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.PERSISTER_IAM,
+      ),
+    ]
 
   def deploy(self, role_name=None):
     role_name = role_name or globals.persister_iam_role_name()

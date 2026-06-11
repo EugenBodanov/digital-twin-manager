@@ -2,6 +2,7 @@ import deployment_state
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import os
 import globals
@@ -21,7 +22,11 @@ class HotColdMoverLambdaFunctionDeployer(Deployer):
     if previous_function_name == desired_function_name and previous_role_name == desired_role_name:
       self.log(f"Hot to Cold Mover Lambda function {desired_function_name} is up to date.")
       return [
-        plan_action(desired_function_name, "lambda_function")
+        plan_action(
+          desired_function_name,
+          "lambda_function",
+          graph_id=plan_graph_ids.HOT_COLD_MOVER_LAMBDA,
+        )
       ]
 
     if previous_function_name != desired_function_name:
@@ -30,8 +35,18 @@ class HotColdMoverLambdaFunctionDeployer(Deployer):
       self.log(f"Hot to Cold Mover IAM role name changed from {previous_role_name} to {desired_role_name}.")
 
     return [
-      plan_action(previous_function_name, "lambda_function", action="DESTROY"),
-      plan_action(desired_function_name, "lambda_function", action="DEPLOY"),
+      plan_action(
+        previous_function_name,
+        "lambda_function",
+        action="DESTROY",
+        graph_id=plan_graph_ids.HOT_COLD_MOVER_LAMBDA,
+      ),
+      plan_action(
+        desired_function_name,
+        "lambda_function",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.HOT_COLD_MOVER_LAMBDA,
+      ),
     ]
 
   def deploy(self, function_name=None, role_name=None):

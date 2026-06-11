@@ -2,6 +2,7 @@ import deployment_state
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import globals
 import util
 from botocore.exceptions import ClientError
@@ -23,7 +24,12 @@ class ColdS3BucketDeployer(Deployer):
     ):
       self.log(f"Cold S3 Bucket {desired_bucket_name} is up to date in {desired_region}.")
       return [
-        plan_action(desired_bucket_name, "s3_bucket", region=desired_region)
+        plan_action(
+          desired_bucket_name,
+          "s3_bucket",
+          graph_id=plan_graph_ids.COLD_S3_BUCKET,
+          region=desired_region,
+        )
       ]
 
     self.log(
@@ -36,12 +42,14 @@ class ColdS3BucketDeployer(Deployer):
         previous_bucket_name,
         "s3_bucket",
         action="DESTROY",
+        graph_id=plan_graph_ids.COLD_S3_BUCKET,
         region=previous_region,
       ),
       plan_action(
         desired_bucket_name,
         "s3_bucket",
         action="DEPLOY",
+        graph_id=plan_graph_ids.COLD_S3_BUCKET,
         region=desired_region,
       ),
     ]

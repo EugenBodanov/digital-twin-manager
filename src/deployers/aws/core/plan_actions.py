@@ -50,12 +50,14 @@ PLAN_RESOURCE_TYPES: tuple[PlanResourceType, ...] = (
     "twinmaker_component_type",
     "twinmaker_hierarchy",
     "twinmaker_workspace",
+    "event_action",
 )
 
 
 class PlannedAction(TypedDict):
     resource: Any
     resource_type: PlanResourceType
+    graph_id: str | None
     action: PlanActionName
     blocked: bool
     required_flags: list[str]
@@ -65,6 +67,7 @@ class PlannedAction(TypedDict):
 
 
 class PlannedActionValues(TypedDict, total=False):
+    graph_id: str | None
     action: PlanActionName
     blocked: bool
     required_flags: list[str]
@@ -81,6 +84,7 @@ def plan_action(
     action: PlannedAction = {
         "resource": resource,
         "resource_type": resource_type,
+        "graph_id": None,
         "action": "NO_CHANGE",
         "blocked": False,
         "required_flags": [],

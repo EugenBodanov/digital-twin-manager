@@ -2,6 +2,7 @@ import deployment_state
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 from datetime import datetime, timezone
 import time
 import globals
@@ -19,13 +20,27 @@ class HotDynamodbTableDeployer(Deployer):
     if previous_table_name == desired_table_name:
       self.log(f"Hot DynamoDb table {desired_table_name} is up to date.")
       return [
-        plan_action(desired_table_name, "dynamodb_table")
+        plan_action(
+          desired_table_name,
+          "dynamodb_table",
+          graph_id=plan_graph_ids.HOT_DYNAMODB_TABLE,
+        )
       ]
 
     self.log(f"Hot DynamoDb table name changed from {previous_table_name} to {desired_table_name}.")
     return [
-      plan_action(previous_table_name, "dynamodb_table", action="DESTROY"),
-      plan_action(desired_table_name, "dynamodb_table", action="DEPLOY"),
+      plan_action(
+        previous_table_name,
+        "dynamodb_table",
+        action="DESTROY",
+        graph_id=plan_graph_ids.HOT_DYNAMODB_TABLE,
+      ),
+      plan_action(
+        desired_table_name,
+        "dynamodb_table",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.HOT_DYNAMODB_TABLE,
+      ),
     ]
 
   def deploy(self, table_name=None):

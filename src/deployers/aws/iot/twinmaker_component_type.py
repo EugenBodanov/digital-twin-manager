@@ -1,6 +1,7 @@
 from deployers.aws.core.plan_actions import plan_action
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import globals
 import deployment_state
 from botocore.exceptions import ClientError
@@ -40,6 +41,14 @@ class TwinmakerComponentTypeDeployer(Deployer):
       globals.twinmaker_component_type_id(desired_iot_device)
       if desired_iot_device else None
     )
+    previous_graph_id = (
+      plan_graph_ids.device_component_type(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_graph_id = (
+      plan_graph_ids.device_component_type(desired_iot_device)
+      if desired_iot_device else None
+    )
 
     previous_property_definitions = (
       self._property_definitions(previous_iot_device)
@@ -53,13 +62,23 @@ class TwinmakerComponentTypeDeployer(Deployer):
     if previous_iot_device is None:
       self.log(f"TwinMaker Component Type {desired_component_type_id} is new.")
       return [
-        plan_action(desired_component_type_id, "twinmaker_component_type", action="DEPLOY"),
+        plan_action(
+          desired_component_type_id,
+          "twinmaker_component_type",
+          action="DEPLOY",
+          graph_id=desired_graph_id,
+        ),
       ]
 
     if desired_iot_device is None:
       self.log(f"TwinMaker Component Type {previous_component_type_id} was removed from config.")
       return [
-        plan_action(previous_component_type_id, "twinmaker_component_type", action="DESTROY"),
+        plan_action(
+          previous_component_type_id,
+          "twinmaker_component_type",
+          action="DESTROY",
+          graph_id=previous_graph_id,
+        ),
       ]
 
     if (
@@ -70,7 +89,11 @@ class TwinmakerComponentTypeDeployer(Deployer):
     ):
       self.log(f"TwinMaker Component Type {desired_component_type_id} is up to date.")
       return [
-        plan_action(desired_component_type_id, "twinmaker_component_type"),
+        plan_action(
+          desired_component_type_id,
+          "twinmaker_component_type",
+          graph_id=desired_graph_id,
+        ),
       ]
 
     if previous_connector_function_name != desired_connector_function_name:
@@ -96,8 +119,18 @@ class TwinmakerComponentTypeDeployer(Deployer):
       )
 
     return [
-      plan_action(previous_component_type_id, "twinmaker_component_type", action="DESTROY"),
-      plan_action(desired_component_type_id, "twinmaker_component_type", action="DEPLOY"),
+      plan_action(
+        previous_component_type_id,
+        "twinmaker_component_type",
+        action="DESTROY",
+        graph_id=previous_graph_id,
+      ),
+      plan_action(
+        desired_component_type_id,
+        "twinmaker_component_type",
+        action="DEPLOY",
+        graph_id=desired_graph_id,
+      ),
     ]
 
 

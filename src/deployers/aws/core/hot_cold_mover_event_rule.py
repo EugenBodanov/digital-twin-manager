@@ -2,6 +2,7 @@ import deployment_state
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import globals
 import util
 from botocore.exceptions import ClientError
@@ -19,7 +20,11 @@ class HotColdMoverEventRuleDeployer(Deployer):
     if previous_function_name == desired_function_name and previous_rule_name == desired_rule_name:
       self.log(f"Hot to Cold Mover EventBridge Rule {desired_rule_name} is up to date.")
       return [
-        plan_action(desired_rule_name, "eventbridge_rule")
+        plan_action(
+          desired_rule_name,
+          "eventbridge_rule",
+          graph_id=plan_graph_ids.HOT_COLD_MOVER_EVENT_RULE,
+        )
       ]
 
     if previous_function_name != desired_function_name:
@@ -28,8 +33,18 @@ class HotColdMoverEventRuleDeployer(Deployer):
       self.log(f"Hot to Cold Mover Lambda function name changed from {previous_function_name} to {desired_function_name}.")
 
     return [
-      plan_action(previous_rule_name, "eventbridge_rule", action="DESTROY"),
-      plan_action(desired_rule_name, "eventbridge_rule", action="DEPLOY"),
+      plan_action(
+        previous_rule_name,
+        "eventbridge_rule",
+        action="DESTROY",
+        graph_id=plan_graph_ids.HOT_COLD_MOVER_EVENT_RULE,
+      ),
+      plan_action(
+        desired_rule_name,
+        "eventbridge_rule",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.HOT_COLD_MOVER_EVENT_RULE,
+      ),
     ]
 
   def deploy(self, rule_name=None, function_name=None):

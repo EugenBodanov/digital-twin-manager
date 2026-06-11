@@ -5,6 +5,7 @@ from deployers.aws.core.json_helpers import content_changed
 from deployers.aws.iot.device_config import effective_iot_devices
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import time
 import globals
 import util
@@ -193,14 +194,24 @@ class TwinmakerHierarchyDeployer(Deployer):
       if previous_entity is None:
         self.log(f"TwinMaker Hierarchy root entity {entity_id} is new.")
         actions.append(
-          plan_action(entity_id, "twinmaker_hierarchy", action="DEPLOY")
+          plan_action(
+            entity_id,
+            "twinmaker_hierarchy",
+            action="DEPLOY",
+            graph_id=plan_graph_ids.twinmaker_hierarchy(entity_id),
+          )
         )
         continue
 
       if desired_entity is None:
         self.log(f"TwinMaker Hierarchy root entity {entity_id} was removed from config.")
         actions.append(
-          plan_action(entity_id, "twinmaker_hierarchy", action="DESTROY")
+          plan_action(
+            entity_id,
+            "twinmaker_hierarchy",
+            action="DESTROY",
+            graph_id=plan_graph_ids.twinmaker_hierarchy(entity_id),
+          )
         )
         continue
 
@@ -210,7 +221,11 @@ class TwinmakerHierarchyDeployer(Deployer):
       ):
         self.log(f"TwinMaker Hierarchy root entity {entity_id} is up to date.")
         actions.append(
-          plan_action(entity_id, "twinmaker_hierarchy")
+          plan_action(
+            entity_id,
+            "twinmaker_hierarchy",
+            graph_id=plan_graph_ids.twinmaker_hierarchy(entity_id),
+          )
         )
         continue
 
@@ -224,8 +239,18 @@ class TwinmakerHierarchyDeployer(Deployer):
         self.log(f"TwinMaker Hierarchy root entity {entity_id} has changed.")
 
       actions.extend([
-        plan_action(entity_id, "twinmaker_hierarchy", action="DESTROY"),
-        plan_action(entity_id, "twinmaker_hierarchy", action="DEPLOY"),
+        plan_action(
+          entity_id,
+          "twinmaker_hierarchy",
+          action="DESTROY",
+          graph_id=plan_graph_ids.twinmaker_hierarchy(entity_id),
+        ),
+        plan_action(
+          entity_id,
+          "twinmaker_hierarchy",
+          action="DEPLOY",
+          graph_id=plan_graph_ids.twinmaker_hierarchy(entity_id),
+        ),
       ])
 
     return actions

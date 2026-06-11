@@ -6,6 +6,7 @@ from typing import Any, Mapping, Sequence
 import resource_names
 from deployers.aws.iot.device_config import effective_iot_devices
 
+from .graph_ids import runtime_node_id
 from .models import RuntimeDependency, RuntimeGraph, RuntimeNode, TemplateGraph, TemplateNode
 
 
@@ -682,7 +683,7 @@ def _shared_logical_name(template_id: str) -> str:
 
 
 def _runtime_id(template_id: str, logical_name: str) -> str:
-  return f"{template_id}:{logical_name}"
+  return runtime_node_id(template_id, logical_name)
 
 
 def _drafts_by_template_id(

@@ -1,6 +1,7 @@
 from deployers.base import Deployer
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
+from dependency_graph import plan_graph_ids
 import json
 import time
 import globals
@@ -24,7 +25,11 @@ class LambdaChainStepFunctionDeployer(Deployer):
     ):
       self.log(f"Lambda-Chain Step Function {desired_step_function_name} is up to date.")
       return [
-        plan_action(desired_step_function_name, "step_function")
+        plan_action(
+          desired_step_function_name,
+          "step_function",
+          graph_id=plan_graph_ids.LAMBDA_CHAIN_STEP_FUNCTION,
+        )
       ]
 
     if previous_step_function_name != desired_step_function_name:
@@ -33,8 +38,18 @@ class LambdaChainStepFunctionDeployer(Deployer):
       self.log(f"Lambda-Chain IAM role name changed from {previous_role_name} to {desired_role_name}.")
 
     return [
-      plan_action(previous_step_function_name, "step_function", action="DESTROY"),
-      plan_action(desired_step_function_name, "step_function", action="DEPLOY"),
+      plan_action(
+        previous_step_function_name,
+        "step_function",
+        action="DESTROY",
+        graph_id=plan_graph_ids.LAMBDA_CHAIN_STEP_FUNCTION,
+      ),
+      plan_action(
+        desired_step_function_name,
+        "step_function",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.LAMBDA_CHAIN_STEP_FUNCTION,
+      ),
     ]
 
   def deploy(self, sf_name=None, role_name=None):

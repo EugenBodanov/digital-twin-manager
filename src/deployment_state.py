@@ -337,10 +337,20 @@ def mark_plan_action_processed(group_name, layer_name, matching_action):
     if current_group_name != group_name or current_layer_name != layer_name:
       continue
 
+    graph_id_matches = (
+      action.get("graph_id") == matching_action.get("graph_id")
+      if (
+        action.get("graph_id") is not None
+        or matching_action.get("graph_id") is not None
+      )
+      else True
+    )
+
     if (
       action.get("resource") == matching_action.get("resource")
       and action.get("resource_type") == matching_action.get("resource_type")
       and action.get("action") == matching_action.get("action")
+      and graph_id_matches
     ):
       action["processed"] = True
       _write_json(state_plan_file_path(), plan)
@@ -351,7 +361,8 @@ def mark_plan_action_processed(group_name, layer_name, matching_action):
     f"{group_name}/{layer_name}/"
     f"{matching_action.get('resource_type')}/"
     f"{matching_action.get('resource')}/"
-    f"{matching_action.get('action')}"
+    f"{matching_action.get('action')}/"
+    f"{matching_action.get('graph_id')}"
   )
 
 

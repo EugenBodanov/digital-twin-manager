@@ -1,6 +1,7 @@
 from deployers.base import Deployer
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
+from dependency_graph import plan_graph_ids
 import deployment_state
 import json
 import time
@@ -30,6 +31,7 @@ class GrafanaWorkspaceDeployer(Deployer):
         plan_action(
           desired_workspace_name,
           "grafana_workspace",
+          graph_id=plan_graph_ids.GRAFANA_WORKSPACE,
           region=desired_region,
         )
       ]
@@ -44,12 +46,14 @@ class GrafanaWorkspaceDeployer(Deployer):
         previous_workspace_name,
         "grafana_workspace",
         action="DESTROY",
+        graph_id=plan_graph_ids.GRAFANA_WORKSPACE,
         region=previous_region,
       ),
       plan_action(
         desired_workspace_name,
         "grafana_workspace",
         action="DEPLOY",
+        graph_id=plan_graph_ids.GRAFANA_WORKSPACE,
         region=desired_region,
       ),
     ]

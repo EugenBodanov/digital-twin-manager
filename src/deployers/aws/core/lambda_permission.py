@@ -12,6 +12,7 @@ class LambdaPermissionPlanner:
     self,
     resource,
     parent_resource,
+    graph_id,
     label,
     statement_id,
     principal_service,
@@ -20,6 +21,7 @@ class LambdaPermissionPlanner:
   ):
     self.resource = resource
     self.parent_resource = parent_resource
+    self.graph_id = graph_id
     self.label = label
     self.statement_id = statement_id
     self.principal_service = principal_service
@@ -143,6 +145,7 @@ class LambdaPermissionPlanner:
     permission_action = plan_action(
       self.resource,
       "lambda_permission",
+      graph_id=self.graph_id,
       parent_resource=self.parent_resource,
       previous_function_name=previous_function_name,
       desired_function_name=desired_function_name,

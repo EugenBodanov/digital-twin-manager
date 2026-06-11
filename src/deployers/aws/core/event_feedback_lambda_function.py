@@ -1,6 +1,7 @@
 from deployers.base import Deployer
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
+from dependency_graph import plan_graph_ids
 import json
 import os
 import globals
@@ -24,7 +25,11 @@ class EventFeedbackLambdaFunctionDeployer(Deployer):
     ):
       self.log(f"Event-Feedback Lambda function {desired_function_name} is up to date.")
       return [
-        plan_action(desired_function_name, "lambda_function")
+        plan_action(
+          desired_function_name,
+          "lambda_function",
+          graph_id=plan_graph_ids.EVENT_FEEDBACK_LAMBDA,
+        )
       ]
 
     if previous_function_name != desired_function_name:
@@ -33,8 +38,18 @@ class EventFeedbackLambdaFunctionDeployer(Deployer):
       self.log(f"Event-Feedback IAM role name changed from {previous_role_name} to {desired_role_name}.")
 
     return [
-      plan_action(previous_function_name, "lambda_function", action="DESTROY"),
-      plan_action(desired_function_name, "lambda_function", action="DEPLOY"),
+      plan_action(
+        previous_function_name,
+        "lambda_function",
+        action="DESTROY",
+        graph_id=plan_graph_ids.EVENT_FEEDBACK_LAMBDA,
+      ),
+      plan_action(
+        desired_function_name,
+        "lambda_function",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.EVENT_FEEDBACK_LAMBDA,
+      ),
     ]
   
   def deploy(self, function_name=None, role_name=None):

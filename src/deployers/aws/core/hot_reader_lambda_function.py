@@ -2,6 +2,7 @@ import deployment_state
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import os
 import globals
@@ -19,13 +20,27 @@ class HotReaderLambdaFunctionDeployer(Deployer):
     if previous_function_name == desired_function_name:
       self.log(f"Hot Reader Lambda Function {desired_function_name} is up to date.")
       return [
-        plan_action(desired_function_name, "lambda_function")
+        plan_action(
+          desired_function_name,
+          "lambda_function",
+          graph_id=plan_graph_ids.HOT_READER_LAMBDA,
+        )
       ]
 
     self.log(f"Hot Reader Lambda Function name changed from {previous_function_name} to {desired_function_name}.")
     return [
-      plan_action(previous_function_name, "lambda_function", action="DESTROY"),
-      plan_action(desired_function_name, "lambda_function", action="DEPLOY"),
+      plan_action(
+        previous_function_name,
+        "lambda_function",
+        action="DESTROY",
+        graph_id=plan_graph_ids.HOT_READER_LAMBDA,
+      ),
+      plan_action(
+        desired_function_name,
+        "lambda_function",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.HOT_READER_LAMBDA,
+      ),
     ]
 
   def deploy(self, function_name=None, role_name=None):

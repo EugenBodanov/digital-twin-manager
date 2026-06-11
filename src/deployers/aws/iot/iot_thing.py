@@ -1,6 +1,7 @@
 from deployers.aws.core.plan_actions import plan_action
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import globals
 import os
@@ -30,23 +31,45 @@ class IotThingDeployer(Deployer):
       globals.iot_thing_policy_name(desired_iot_device)
       if desired_iot_device else None
     )
+    previous_graph_id = (
+      plan_graph_ids.iot_thing(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_graph_id = (
+      plan_graph_ids.iot_thing(desired_iot_device)
+      if desired_iot_device else None
+    )
 
     if previous_iot_device is None:
       self.log(f"IoT Thing {desired_thing_name} is new.")
       return [
-        plan_action(desired_thing_name, "iot_thing", action="DEPLOY"),
+        plan_action(
+          desired_thing_name,
+          "iot_thing",
+          action="DEPLOY",
+          graph_id=desired_graph_id,
+        ),
       ]
 
     if desired_iot_device is None:
       self.log(f"IoT Thing {previous_thing_name} was removed from config.")
       return [
-        plan_action(previous_thing_name, "iot_thing", action="DESTROY"),
+        plan_action(
+          previous_thing_name,
+          "iot_thing",
+          action="DESTROY",
+          graph_id=previous_graph_id,
+        ),
       ]
 
     if previous_thing_name == desired_thing_name and previous_policy_name == desired_policy_name:
       self.log(f"IoT Thing {desired_thing_name} is up to date.")
       return [
-        plan_action(desired_thing_name, "iot_thing"),
+        plan_action(
+          desired_thing_name,
+          "iot_thing",
+          graph_id=desired_graph_id,
+        ),
       ]
 
     if previous_thing_name != desired_thing_name:
@@ -55,8 +78,18 @@ class IotThingDeployer(Deployer):
       self.log(f"IoT Thing Policy name has changed from {previous_policy_name} to {desired_policy_name}")
 
     return [
-      plan_action(previous_thing_name, "iot_thing", action="DESTROY"),
-      plan_action(desired_thing_name, "iot_thing", action="DEPLOY"),
+      plan_action(
+        previous_thing_name,
+        "iot_thing",
+        action="DESTROY",
+        graph_id=previous_graph_id,
+      ),
+      plan_action(
+        desired_thing_name,
+        "iot_thing",
+        action="DEPLOY",
+        graph_id=desired_graph_id,
+      ),
     ]
 
   def deploy(self, iot_device, thing_name=None, policy_name=None):

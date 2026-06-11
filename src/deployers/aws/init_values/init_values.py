@@ -3,6 +3,7 @@ from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import content_changed
 from deployers.aws.core.plan_actions import plan_action
 from deployers.aws.iot.device_config import effective_iot_devices
+from dependency_graph import plan_graph_ids
 import deployment_state
 import globals
 from datetime import datetime, timezone
@@ -75,7 +76,12 @@ class InitValuesDeployer(Deployer):
       if previous_init_values is None:
         self.log(f"Init values for IoT device {iot_device_id} are new.")
         actions.append(
-          plan_action(iot_device_id, "init_value", action="DEPLOY")
+          plan_action(
+            iot_device_id,
+            "init_value",
+            action="DEPLOY",
+            graph_id=plan_graph_ids.init_value(iot_device_id),
+          )
         )
         continue
 
@@ -88,6 +94,7 @@ class InitValuesDeployer(Deployer):
             iot_device_id,
             "init_value",
             action="DESTROY",
+            graph_id=plan_graph_ids.init_value(iot_device_id),
             blocked=True,
             blockers=[
               "Init values are runtime data and cannot be removed by InitValuesDeployer"
@@ -99,13 +106,22 @@ class InitValuesDeployer(Deployer):
       if not content_changed(previous_init_values, desired_init_values):
         self.log(f"Init values for IoT device {iot_device_id} are up to date.")
         actions.append(
-          plan_action(iot_device_id, "init_value")
+          plan_action(
+            iot_device_id,
+            "init_value",
+            graph_id=plan_graph_ids.init_value(iot_device_id),
+          )
         )
         continue
 
       self.log(f"Init values for IoT device {iot_device_id} have changed.")
       actions.append(
-        plan_action(iot_device_id, "init_value", action="DEPLOY")
+        plan_action(
+          iot_device_id,
+          "init_value",
+          action="DEPLOY",
+          graph_id=plan_graph_ids.init_value(iot_device_id),
+        )
       )
 
     return actions

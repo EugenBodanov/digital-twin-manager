@@ -4,6 +4,7 @@ from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.json_helpers import normalized_json, content_changed
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import os
 import time
@@ -227,23 +228,53 @@ class LambdaActionsDeployer(Deployer):
 
       if previous_action is None:
         self.log(f"Event Action {action_id} is new.")
-        actions.append(plan_action(action_id, "event_action", action="DEPLOY"))
+        actions.append(
+          plan_action(
+            action_id,
+            "event_action",
+            action="DEPLOY",
+            graph_id=plan_graph_ids.event_action(action_id),
+          )
+        )
         continue
 
       if desired_action is None:
         self.log(f"Event Action {action_id} was removed from config.")
-        actions.append(plan_action(action_id, "event_action", action="DESTROY"))
+        actions.append(
+          plan_action(
+            action_id,
+            "event_action",
+            action="DESTROY",
+            graph_id=plan_graph_ids.event_action(action_id),
+          )
+        )
         continue
 
       if not content_changed(previous_action, desired_action):
         self.log(f"Event Action {action_id} is up to date.")
-        actions.append(plan_action(action_id, "event_action"))
+        actions.append(
+          plan_action(
+            action_id,
+            "event_action",
+            graph_id=plan_graph_ids.event_action(action_id),
+          )
+        )
         continue
 
       self.log(f"Event Action {action_id} has changed.")
       actions.extend([
-        plan_action(action_id, "event_action", action="DESTROY"),
-        plan_action(action_id, "event_action", action="DEPLOY"),
+        plan_action(
+          action_id,
+          "event_action",
+          action="DESTROY",
+          graph_id=plan_graph_ids.event_action(action_id),
+        ),
+        plan_action(
+          action_id,
+          "event_action",
+          action="DEPLOY",
+          graph_id=plan_graph_ids.event_action(action_id),
+        ),
       ])
 
     return actions

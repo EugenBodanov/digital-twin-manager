@@ -1,6 +1,7 @@
 from deployers.base import Deployer
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
+from dependency_graph import plan_graph_ids
 import deployment_state
 import globals
 import util
@@ -22,7 +23,12 @@ class TwinmakerS3BucketDeployer(Deployer):
     ):
       self.log(f"TwinMaker S3 Bucket {desired_bucket_name} is up to date in {desired_region}.")
       return [
-        plan_action(desired_bucket_name, "s3_bucket", region=desired_region)
+        plan_action(
+          desired_bucket_name,
+          "s3_bucket",
+          graph_id=plan_graph_ids.TWINMAKER_S3_BUCKET,
+          region=desired_region,
+        )
       ]
 
     self.log(
@@ -35,12 +41,14 @@ class TwinmakerS3BucketDeployer(Deployer):
         previous_bucket_name,
         "s3_bucket",
         action="DESTROY",
+        graph_id=plan_graph_ids.TWINMAKER_S3_BUCKET,
         region=previous_region,
       ),
       plan_action(
         desired_bucket_name,
         "s3_bucket",
         action="DEPLOY",
+        graph_id=plan_graph_ids.TWINMAKER_S3_BUCKET,
         region=desired_region,
       ),
     ]

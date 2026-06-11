@@ -1,6 +1,7 @@
 from deployers.base import Deployer
 from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
+from dependency_graph import plan_graph_ids
 import deployment_state
 import time
 import globals
@@ -32,6 +33,7 @@ class TwinmakerWorkspaceDeployer(Deployer):
         plan_action(
           desired_workspace_name,
           "twinmaker_workspace",
+          graph_id=plan_graph_ids.TWINMAKER_WORKSPACE,
           region=desired_region,
         )
       ]
@@ -46,12 +48,14 @@ class TwinmakerWorkspaceDeployer(Deployer):
         previous_workspace_name,
         "twinmaker_workspace",
         action="DESTROY",
+        graph_id=plan_graph_ids.TWINMAKER_WORKSPACE,
         region=previous_region,
       ),
       plan_action(
         desired_workspace_name,
         "twinmaker_workspace",
         action="DEPLOY",
+        graph_id=plan_graph_ids.TWINMAKER_WORKSPACE,
         region=desired_region,
       ),
     ]

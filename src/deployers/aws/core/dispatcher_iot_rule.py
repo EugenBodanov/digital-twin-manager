@@ -3,6 +3,7 @@ from deployers.base import Deployer
 from deployers.aws.core.aws_arns import iot_rule_arn, lambda_function_arn
 from deployers.aws.core.lambda_permission import LambdaPermissionPlanner
 from deployers.aws.core.plan_actions import plan_action
+from dependency_graph import plan_graph_ids
 import globals
 import deployment_state
 import util
@@ -62,6 +63,7 @@ class DispatcherIotRuleDeployer(Deployer):
     return LambdaPermissionPlanner(
       resource="dispatcher_iot_rule_lambda_permission",
       parent_resource="dispatcher_iot_rule",
+      graph_id=plan_graph_ids.DISPATCHER_IOT_RULE_LAMBDA_PERMISSION,
       label="Dispatcher IoT Rule Lambda permission",
       statement_id=self.LAMBDA_PERMISSION_STATEMENT_ID,
       principal_service="iot.amazonaws.com",
@@ -108,13 +110,27 @@ class DispatcherIotRuleDeployer(Deployer):
         )
 
       return [
-        plan_action(previous_rule_name, "iot_rule", action="DESTROY"),
-        plan_action(desired_rule_name, "iot_rule", action="DEPLOY"),
+        plan_action(
+          previous_rule_name,
+          "iot_rule",
+          action="DESTROY",
+          graph_id=plan_graph_ids.DISPATCHER_IOT_RULE,
+        ),
+        plan_action(
+          desired_rule_name,
+          "iot_rule",
+          action="DEPLOY",
+          graph_id=plan_graph_ids.DISPATCHER_IOT_RULE,
+        ),
       ]
 
     self.log(f"Dispatcher IoT Rule is up to date.")
     return [
-      plan_action(desired_rule_name, "iot_rule")
+      plan_action(
+        desired_rule_name,
+        "iot_rule",
+        graph_id=plan_graph_ids.DISPATCHER_IOT_RULE,
+      )
     ]
 
   def deploy(self, rule_name=None, topic=None, function_name=None):
