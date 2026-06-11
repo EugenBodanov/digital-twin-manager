@@ -1,13 +1,7 @@
 from __future__ import annotations
-
 import unittest
-import sys
-from pathlib import Path
-
 import src.validation as validation
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from helpers import valid_config_set
+from validation_helpers import valid_config_set
 
 
 class ValidationEntrypointTests(unittest.TestCase):

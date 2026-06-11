@@ -1,24 +1,16 @@
 from __future__ import annotations
-
-import sys
 import unittest
-from pathlib import Path
-
-TESTS_ROOT = Path(__file__).resolve().parents[1]
-if str(TESTS_ROOT) not in sys.path:
-  sys.path.insert(0, str(TESTS_ROOT))
-
-from dependency_graph.helpers import TEMPLATE_PATH, template_node
+from dependency_graph_helpers import TEMPLATE_PATH, template_node
 
 import resource_names
-from src.dependency_graph.loader import load_template_graph
-from src.dependency_graph.models import (
+from dependency_graph.loader import load_template_graph
+from dependency_graph.models import (
   DependencyType,
   TemplateDependency,
   TemplateGraph,
   TemplateNode,
 )
-from src.dependency_graph.runtime_graph_builder import build_runtime_graph
+from dependency_graph.runtime_graph_builder import build_runtime_graph
 
 
 class RuntimeGraphBuilderTests(unittest.TestCase):

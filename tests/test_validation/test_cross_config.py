@@ -1,13 +1,7 @@
 from __future__ import annotations
-
 import unittest
-import sys
-from pathlib import Path
-
 from src.validation import cross_config
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from helpers import clone, valid_config_set
+from validation_helpers import clone, valid_config_set
 
 
 class CrossConfigValidationTests(unittest.TestCase):

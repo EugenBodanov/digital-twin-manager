@@ -1,13 +1,7 @@
 from __future__ import annotations
-
 import unittest
-import sys
-from pathlib import Path
-
 from src.validation import config
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from helpers import clone, valid_config
+from validation_helpers import clone, valid_config
 
 
 class ConfigValidationTests(unittest.TestCase):

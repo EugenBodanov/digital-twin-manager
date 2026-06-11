@@ -1,17 +1,8 @@
 from __future__ import annotations
-
-import sys
 import unittest
-from pathlib import Path
-
-TESTS_ROOT = Path(__file__).resolve().parents[1]
-if str(TESTS_ROOT) not in sys.path:
-  sys.path.insert(0, str(TESTS_ROOT))
-
-from dependency_graph.helpers import template_node
-
-from src.dependency_graph.mermaid import render_template_graph_mermaid
-from src.dependency_graph.models import TemplateGraph
+from dependency_graph_helpers import template_node
+from dependency_graph.mermaid import render_template_graph_mermaid
+from dependency_graph.models import TemplateGraph
 
 
 class DependencyGraphMermaidTests(unittest.TestCase):

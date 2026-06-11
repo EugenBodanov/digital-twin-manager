@@ -1,20 +1,11 @@
 from __future__ import annotations
-
 import unittest
-import sys
-from pathlib import Path
+from dependency_graph_helpers import ensure_src_path
 
-TESTS_ROOT = Path(__file__).resolve().parents[1]
-if str(TESTS_ROOT) not in sys.path:
-  sys.path.insert(0, str(TESTS_ROOT))
+ensure_src_path()
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SRC_PATH = REPO_ROOT / "src"
-if str(SRC_PATH) not in sys.path:
-  sys.path.append(str(SRC_PATH))
-
-from src.dependency_graph import plan_graph_ids
-from src.dependency_graph.graph_ids import runtime_node_id
+from dependency_graph import plan_graph_ids
+from dependency_graph.graph_ids import runtime_node_id
 
 
 class GraphIdTests(unittest.TestCase):

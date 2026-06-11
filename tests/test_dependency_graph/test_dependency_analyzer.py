@@ -1,21 +1,18 @@
 from __future__ import annotations
-
-import sys
 import unittest
-from pathlib import Path
 
-TESTS_ROOT = Path(__file__).resolve().parents[1]
-if str(TESTS_ROOT) not in sys.path:
-  sys.path.insert(0, str(TESTS_ROOT))
+from dependency_graph_helpers import ensure_src_path
 
-from src.dependency_graph.dependency_analyzer import analyze_plan_dependencies
-from src.dependency_graph.models import (
+ensure_src_path()
+
+from dependency_graph.dependency_analyzer import analyze_plan_dependencies
+from dependency_graph.models import (
   DependencyType,
   RuntimeDependency,
   RuntimeGraph,
   RuntimeNode,
 )
-from src.deployers.aws.core.plan_actions import PlannedAction, plan_action
+from deployers.aws.core.plan_actions import PlannedAction, plan_action
 
 
 class DependencyAnalyzerTests(unittest.TestCase):

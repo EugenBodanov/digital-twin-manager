@@ -5,11 +5,11 @@ from pathlib import Path
 
 
 def load_tests(loader, tests, pattern):
-  validation_tests_dir = Path(__file__).resolve().parent / "test_validation"
+  dependency_graph_tests_dir = Path(__file__).resolve().parent / "test_dependency_graph"
   return loader.discover(
-    str(validation_tests_dir),
+    str(dependency_graph_tests_dir),
     pattern or "test*.py",
-    top_level_dir=str(validation_tests_dir),
+    top_level_dir=str(dependency_graph_tests_dir),
   )
 
 

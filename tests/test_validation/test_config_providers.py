@@ -1,13 +1,7 @@
 from __future__ import annotations
-
 import unittest
-import sys
-from pathlib import Path
-
 from src.validation import config_providers
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from helpers import valid_config_providers
+from validation_helpers import valid_config_providers
 
 
 class ConfigProvidersValidationTests(unittest.TestCase):
