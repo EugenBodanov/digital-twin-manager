@@ -8,6 +8,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from tests.aws_stubs import install_aws_stubs
+
+install_aws_stubs()
+
 import deployment_state
 import globals
 from deployers.aws.core.event_checker_lambda_function import (

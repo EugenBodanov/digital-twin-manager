@@ -187,6 +187,9 @@ def _analyze_destroy_action(
     if not _node_depends_on(remaining_dependent, graph_id):
       continue
 
+    if remaining_dependent.lifecycle_artifact:
+      continue
+
     dependent_destroy_actions = _actions_with_name(
       indexes.actions_by_graph_id,
       dependent.id,
@@ -207,8 +210,18 @@ def _analyze_destroy_action(
       ) or changed
       continue
 
+    if _replacement_keeps_physical_identity(graph_id, indexes):
+      continue
+
+    if _replacement_redeploys_dependent(graph_id, dependent.id, indexes):
+      continue
+
     if dependent.id not in indexes.actions_by_graph_id:
-      if _should_ignore_dependent_without_plan_action(node, remaining_dependent):
+      if _should_ignore_unplanned_reverse_dependent(
+        node,
+        remaining_dependent,
+        indexes,
+      ):
         continue
 
       changed = _add_blocker(
@@ -231,14 +244,100 @@ def _analyze_destroy_action(
   return changed
 
 
-def _should_ignore_dependent_without_plan_action(
+def _replacement_keeps_physical_identity(
+  graph_id: str,
+  indexes: _AnalysisIndexes,
+) -> bool:
+  replacement_deploy_actions = _actions_with_name(
+    indexes.actions_by_graph_id,
+    graph_id,
+    "DEPLOY",
+  )
+  if not _has_unblocked_action(replacement_deploy_actions):
+    return False
+
+  previous_node = indexes.previous_nodes.get(graph_id)
+  desired_node = indexes.desired_nodes.get(graph_id)
+
+  if previous_node is None or desired_node is None:
+    return False
+
+  if previous_node.physical_name is None or desired_node.physical_name is None:
+    return False
+
+  return previous_node.physical_name == desired_node.physical_name
+
+
+def _replacement_redeploys_dependent(
+  graph_id: str,
+  dependent_graph_id: str,
+  indexes: _AnalysisIndexes,
+) -> bool:
+  replacement_deploy_actions = _actions_with_name(
+    indexes.actions_by_graph_id,
+    graph_id,
+    "DEPLOY",
+  )
+  if not _has_unblocked_action(replacement_deploy_actions):
+    return False
+
+  dependent_deploy_actions = _actions_with_name(
+    indexes.actions_by_graph_id,
+    dependent_graph_id,
+    "DEPLOY",
+  )
+  return _has_unblocked_action(dependent_deploy_actions)
+
+
+def _should_ignore_unplanned_reverse_dependent(
   node: RuntimeNode,
   dependent: RuntimeNode,
+  indexes: _AnalysisIndexes,
 ) -> bool:
-  if dependent.lifecycle_artifact:
+  if dependent.owner_deployer == node.owner_deployer:
     return True
 
-  return dependent.owner_deployer == node.owner_deployer
+  return _has_covering_owner_destroy_action(dependent, indexes)
+
+
+def _has_covering_owner_destroy_action(
+  dependent: RuntimeNode,
+  indexes: _AnalysisIndexes,
+) -> bool:
+  visited_ids: set[str] = set()
+  stack = [dependent]
+
+  while stack:
+    node = stack.pop()
+
+    for dependency in node.depends_on:
+      if dependency.id in visited_ids:
+        continue
+
+      visited_ids.add(dependency.id)
+      dependency_node = indexes.previous_nodes.get(dependency.id)
+
+      if dependency_node is None:
+        continue
+
+      if dependency_node.owner_deployer != dependent.owner_deployer:
+        continue
+
+      dependency_destroy_actions = _actions_with_name(
+        indexes.actions_by_graph_id,
+        dependency_node.id,
+        "DESTROY",
+      )
+
+      if _has_unblocked_action(dependency_destroy_actions):
+        return True
+
+      if dependency_destroy_actions:
+        continue
+
+      stack.append(dependency_node)
+
+  return False
 
 
 def _node_depends_on(node: RuntimeNode, dependency_id: str) -> bool:

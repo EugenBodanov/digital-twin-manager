@@ -122,17 +122,19 @@ class DependencyAnalyzerTests(unittest.TestCase):
 
   def test_destroy_blocks_when_dependent_still_depends_in_desired_graph(self) -> None:
     previous_graph = runtime_graph(
-      runtime_node("runtime:node:dependency"),
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
       runtime_node(
         "runtime:node:dependent",
         runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
       ),
     )
     desired_graph = runtime_graph(
-      runtime_node("runtime:node:dependency"),
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
       runtime_node(
         "runtime:node:dependent",
         runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
       ),
     )
     plan_groups = plan_with_actions([
@@ -225,6 +227,195 @@ class DependencyAnalyzerTests(unittest.TestCase):
     analyze_plan_dependencies(previous_graph, desired_graph, plan_groups)
 
     self.assertFalse(first_action(plan_groups)["blocked"])
+
+  def test_destroy_blocks_replacement_dependency_with_no_change_dependent(self) -> None:
+    previous_graph = runtime_graph(
+      runtime_node(
+        "runtime:node:dependency",
+        owner_deployer="DependencyDeployer",
+        physical_name="old-dependency",
+      ),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    desired_graph = runtime_graph(
+      runtime_node(
+        "runtime:node:dependency",
+        owner_deployer="DependencyDeployer",
+        physical_name="new-dependency",
+      ),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    plan_groups = plan_with_actions([
+      plan_action(
+        "dependency",
+        "iam",
+        action="DESTROY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "dependency",
+        "iam",
+        action="DEPLOY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "dependent",
+        "lambda_function",
+        graph_id="runtime:node:dependent",
+      ),
+    ])
+
+    analyze_plan_dependencies(previous_graph, desired_graph, plan_groups)
+
+    action = first_action(plan_groups)
+    self.assertTrue(action["blocked"])
+    self.assertIn("runtime:node:dependent still depends on it", action["blockers"][0])
+
+  def test_destroy_allows_replacement_dependency_with_same_physical_name(self) -> None:
+    previous_graph = runtime_graph(
+      runtime_node(
+        "runtime:node:dependency",
+        owner_deployer="DependencyDeployer",
+        physical_name="same-dependency",
+      ),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    desired_graph = runtime_graph(
+      runtime_node(
+        "runtime:node:dependency",
+        owner_deployer="DependencyDeployer",
+        physical_name="same-dependency",
+      ),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    plan_groups = plan_with_actions([
+      plan_action(
+        "dependency",
+        "iam",
+        action="DESTROY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "dependency",
+        "iam",
+        action="DEPLOY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "dependent",
+        "lambda_function",
+        graph_id="runtime:node:dependent",
+      ),
+    ])
+
+    analyze_plan_dependencies(previous_graph, desired_graph, plan_groups)
+
+    self.assertFalse(first_action(plan_groups)["blocked"])
+
+  def test_destroy_allows_replacement_dependency_when_dependent_is_redeployed(
+    self,
+  ) -> None:
+    previous_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    desired_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    plan_groups = plan_with_actions([
+      plan_action(
+        "dependency",
+        "iam",
+        action="DESTROY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "dependency",
+        "iam",
+        action="DEPLOY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "dependent",
+        "lambda_function",
+        action="DEPLOY",
+        graph_id="runtime:node:dependent",
+      ),
+    ])
+
+    analyze_plan_dependencies(previous_graph, desired_graph, plan_groups)
+
+    self.assertFalse(first_action(plan_groups)["blocked"])
+
+  def test_destroy_blocks_when_replacement_deploy_is_blocked(self) -> None:
+    previous_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    desired_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    plan_groups = plan_with_actions([
+      plan_action(
+        "dependency",
+        "iam",
+        action="DESTROY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "dependency",
+        "iam",
+        action="DEPLOY",
+        graph_id="runtime:node:dependency",
+        blocked=True,
+        blockers=["replacement deploy is blocked"],
+      ),
+      plan_action(
+        "dependent",
+        "lambda_function",
+        graph_id="runtime:node:dependent",
+      ),
+    ])
+
+    analyze_plan_dependencies(previous_graph, desired_graph, plan_groups)
+
+    action = first_action(plan_groups)
+    self.assertTrue(action["blocked"])
+    self.assertIn("still depends on it", action["blockers"][0])
 
   def test_destroy_allows_dependent_removed_from_desired_graph(self) -> None:
     previous_graph = runtime_graph(
@@ -431,6 +622,127 @@ class DependencyAnalyzerTests(unittest.TestCase):
 
     self.assertFalse(first_action(plan_groups)["blocked"])
 
+  def test_destroy_ignores_lifecycle_artifact_with_no_change_action(self) -> None:
+    previous_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node(
+        "runtime:node:cleanup",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="CleanupDeployer",
+        lifecycle_artifact=True,
+      ),
+    )
+    desired_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node(
+        "runtime:node:cleanup",
+        runtime_dependency("runtime:node:dependency"),
+        owner_deployer="CleanupDeployer",
+        lifecycle_artifact=True,
+      ),
+    )
+    plan_groups = plan_with_actions([
+      plan_action(
+        "dependency",
+        "iam",
+        action="DESTROY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "cleanup",
+        "lambda_function",
+        graph_id="runtime:node:cleanup",
+      ),
+    ])
+
+    analyze_plan_dependencies(previous_graph, desired_graph, plan_groups)
+
+    self.assertFalse(first_action(plan_groups)["blocked"])
+
+  def test_destroy_ignores_dependent_covered_by_owner_destroy_action(self) -> None:
+    previous_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node("runtime:node:root", owner_deployer="DependentDeployer"),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        runtime_dependency("runtime:node:root"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    desired_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node("runtime:node:root", owner_deployer="DependentDeployer"),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        runtime_dependency("runtime:node:root"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    plan_groups = plan_with_actions([
+      plan_action(
+        "dependency",
+        "iam",
+        action="DESTROY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "root",
+        "twinmaker_hierarchy",
+        action="DESTROY",
+        graph_id="runtime:node:root",
+      ),
+    ])
+
+    analyze_plan_dependencies(previous_graph, desired_graph, plan_groups)
+
+    self.assertFalse(first_action(plan_groups)["blocked"])
+
+  def test_destroy_blocks_when_owner_destroy_coverage_is_blocked(self) -> None:
+    previous_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node("runtime:node:root", owner_deployer="DependentDeployer"),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        runtime_dependency("runtime:node:root"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    desired_graph = runtime_graph(
+      runtime_node("runtime:node:dependency", owner_deployer="DependencyDeployer"),
+      runtime_node("runtime:node:root", owner_deployer="DependentDeployer"),
+      runtime_node(
+        "runtime:node:dependent",
+        runtime_dependency("runtime:node:dependency"),
+        runtime_dependency("runtime:node:root"),
+        owner_deployer="DependentDeployer",
+      ),
+    )
+    plan_groups = plan_with_actions([
+      plan_action(
+        "dependency",
+        "iam",
+        action="DESTROY",
+        graph_id="runtime:node:dependency",
+      ),
+      plan_action(
+        "root",
+        "twinmaker_hierarchy",
+        action="DESTROY",
+        graph_id="runtime:node:root",
+        blocked=True,
+        blockers=["root destroy is blocked"],
+      ),
+    ])
+
+    analyze_plan_dependencies(previous_graph, desired_graph, plan_groups)
+
+    action = first_action(plan_groups)
+    self.assertTrue(action["blocked"])
+    self.assertIn("has no plan action", action["blockers"][0])
+
   def test_analyzer_does_not_duplicate_existing_blockers(self) -> None:
     desired_graph = runtime_graph(
       runtime_node(
@@ -456,6 +768,7 @@ def runtime_node(
   node_id: str,
   *dependencies: RuntimeDependency,
   owner_deployer: str = "TestDeployer",
+  physical_name: str | None = None,
   lifecycle_artifact: bool = False,
 ) -> RuntimeNode:
   return RuntimeNode(
@@ -463,7 +776,7 @@ def runtime_node(
     template_id=node_id.rsplit(":", 1)[0],
     owner_deployer=owner_deployer,
     logical_name=node_id.rsplit(":", 1)[-1],
-    physical_name=node_id,
+    physical_name=physical_name or node_id,
     depends_on=dependencies,
     lifecycle_artifact=lifecycle_artifact,
   )
