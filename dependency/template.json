@@ -43,6 +43,7 @@
     {
       "id": "core:l1:dispatcher_iot_rule_lambda_permission:lambda_permission",
       "owner_deployer": "DispatcherIotRuleDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l1:dispatcher_lambda:lambda_function",
@@ -260,6 +261,7 @@
     {
       "id": "core:l2:event_registry_register_function_url_permission:lambda_permission",
       "owner_deployer": "EventRegistryRegisterLambdaFunctionDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l2:event_registry_register_lambda:lambda_function",
@@ -351,6 +353,7 @@
     {
       "id": "core:l3_hot:hot_cold_mover_lambda_permission:lambda_permission",
       "owner_deployer": "HotColdMoverEventRuleDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l3_hot:hot_cold_mover_lambda:lambda_function",
@@ -412,6 +415,7 @@
     {
       "id": "core:l3_hot:hot_reader_twinmaker_lambda_permission:lambda_permission",
       "owner_deployer": "HotReaderLambdaFunctionDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l3_hot:hot_reader_lambda:lambda_function",
@@ -488,6 +492,7 @@
     {
       "id": "core:l3_cold:cold_archive_mover_lambda_permission:lambda_permission",
       "owner_deployer": "ColdArchiveMoverEventRuleDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l3_cold:cold_archive_mover_lambda:lambda_function",
@@ -559,6 +564,7 @@
     {
       "id": "core:l4:twinmaker_workspace_scene_cleanup:twinmaker_scene",
       "owner_deployer": "TwinmakerWorkspaceDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l4:twinmaker_workspace:twinmaker_workspace",
@@ -569,6 +575,7 @@
     {
       "id": "core:l4:twinmaker_workspace_entity_cleanup:twinmaker_entity",
       "owner_deployer": "TwinmakerWorkspaceDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l4:twinmaker_workspace:twinmaker_workspace",
@@ -579,6 +586,7 @@
     {
       "id": "core:l4:twinmaker_workspace_component_type_cleanup:twinmaker_component_type",
       "owner_deployer": "TwinmakerWorkspaceDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l4:twinmaker_workspace:twinmaker_workspace",
@@ -764,6 +772,7 @@
     {
       "id": "iot:l4:device_component_type_component_cleanup:twinmaker_component",
       "owner_deployer": "TwinmakerComponentTypeDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l4:twinmaker_workspace:twinmaker_workspace",
@@ -820,6 +829,7 @@
     {
       "id": "event_actions:event_actions:event_action:event_action",
       "owner_deployer": "LambdaActionsDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "core:l2:event_checker_lambda:lambda_function",
@@ -869,6 +879,7 @@
     {
       "id": "init_values:init_values:init_value_mqtt_publish:iot_message",
       "owner_deployer": "InitValuesDeployer",
+      "lifecycle_artifact": true,
       "depends_on": [
         {
           "id": "init_values:init_values:init_value:init_value",
