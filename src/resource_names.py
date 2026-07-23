@@ -84,14 +84,6 @@ def lambda_chain_step_function_name(config: Mapping[str, Any]) -> str:
   return resource_name(config, "lambda-chain")
 
 
-def event_registry_register_iam_role_name(config: Mapping[str, Any]) -> str:
-  return resource_name(config, "event-registry-register")
-
-
-def event_registry_register_lambda_function_name(config: Mapping[str, Any]) -> str:
-  return resource_name(config, "event-registry-register")
-
-
 def hot_dynamodb_table_name(config: Mapping[str, Any]) -> str:
   return resource_name(config, "hot-iot-data")
 

@@ -94,7 +94,7 @@ Create a complete list of currently managed resources:
 
 ```text
 Lambda functions
-Lambda permissions and Function URLs
+Lambda permissions
 IAM roles and policies
 DynamoDB tables
 S3 buckets
@@ -111,7 +111,7 @@ Step Functions state machine
 Track separately as runtime or implicit resources, not current deployer-managed resources:
 
 ```text
-SSM event registry parameter values created by the deployed Event Registry Lambda
+SSM event registry parameter values managed by the external federation component
 CloudWatch log groups created implicitly by Lambda/AWS services
 ```
 

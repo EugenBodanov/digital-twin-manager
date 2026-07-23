@@ -50,14 +50,6 @@ LAMBDA_CHAIN_STEP_FUNCTION = runtime_node_id(
   "core:l2:lambda_chain_step_function:step_function",
   "lambda-chain",
 )
-EVENT_REGISTRY_REGISTER_IAM = runtime_node_id(
-  "core:l2:event_registry_register_iam:iam",
-  "event-registry-register",
-)
-EVENT_REGISTRY_REGISTER_LAMBDA = runtime_node_id(
-  "core:l2:event_registry_register_lambda:lambda_function",
-  "event-registry-register",
-)
 
 HOT_DYNAMODB_TABLE = runtime_node_id(
   "core:l3_hot:hot_dynamodb_table:dynamodb_table",

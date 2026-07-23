@@ -32,7 +32,7 @@ TwinMakerEntityReconciler
 GrafanaWorkspaceReconciler
 ```
 
-The current code only grants the Event Registry Lambda access to SSM and lets that Lambda manage registry values at runtime. It also initializes a CloudWatch Logs client but does not create or manage log groups directly.
+The current code grants the Event-checker read-only access to its SSM registry path. Registry values are managed by the external federation component. The application also initializes a CloudWatch Logs client but does not create or manage log groups directly.
 
 The key architectural decision is whether to store previous state.
 
@@ -100,7 +100,7 @@ apply --target lambda:AATwin-dispatcher
 ```
 
 8. Start with low-risk mutable resources: Lambda code/configuration, EventBridge schedules/targets, IoT rule payloads, and IAM inline policy documents.
-9. Treat Lambda invoke permissions and the Event Registry Function URL as first-class planned changes, either through dedicated reconcilers or as owned child changes of their Lambda/rule reconcilers.
+9. Treat Lambda invoke permissions as first-class planned changes, either through dedicated reconcilers or as owned child changes of their Lambda/rule reconcilers.
 10. Keep stateful or identity-sensitive resources as no-op or replacement-required until safe update rules are designed: DynamoDB tables, S3 buckets, TwinMaker workspace IDs, IoT Things, IoT certificates/keys, and local IoT auth files.
 
 ### Assessment
@@ -198,7 +198,7 @@ does not read it during deployment.
 9. Store recovery metadata where needed: Lambda artifact hashes, previous desired config snapshots, DynamoDB/S3 backup references, and IoT certificate/key file metadata.
 10. Update state only after successful resource operation.
 11. Block delete/replacement by default and require explicit flags.
-12. Implement resource support gradually: Lambda code/configuration, Lambda permissions/Function URLs, EventBridge, IoT rules, IAM, S3/DynamoDB definitions, TwinMaker workspace/component types/entities/components, and Grafana.
+12. Implement resource support gradually: Lambda code/configuration, Lambda permissions, EventBridge, IoT rules, IAM, S3/DynamoDB definitions, TwinMaker workspace/component types/entities/components, and Grafana.
 13. Keep runtime data and external/manual resources out of state unless an explicit ownership decision has been made.
 14. Keep SSM registry values and CloudWatch log groups out of state by default because current deployers do not manage them directly.
 

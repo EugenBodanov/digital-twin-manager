@@ -2,8 +2,6 @@ from deployers.aws.core.event_checker_iam_role import EventCheckerIamRoleDeploye
 from deployers.aws.core.event_checker_lambda_function import EventCheckerLambdaFunctionDeployer
 from deployers.aws.core.event_feedback_iam_role import EventFeedbackIamRoleDeployer
 from deployers.aws.core.event_feedback_lambda_function import EventFeedbackLambdaFunctionDeployer
-from deployers.aws.core.event_registry_register_iam_role import EventRegistryRegisterIamRoleDeployer
-from deployers.aws.core.event_registry_register_lambda_function import EventRegistryRegisterLambdaFunctionDeployer
 from deployers.aws.core.lambda_chain_iam_role import LambdaChainIamRoleDeployer
 from deployers.aws.core.lambda_chain_step_function import LambdaChainStepFunctionDeployer
 from deployers.aws.core.persister_iam_role import PersisterIamRoleDeployer
@@ -40,8 +38,6 @@ class L2Deployer(Deployer):
     actions.extend(EventCheckerLambdaFunctionDeployer().plan())
     actions.extend(LambdaChainIamRoleDeployer().plan())
     actions.extend(LambdaChainStepFunctionDeployer().plan())
-    actions.extend(EventRegistryRegisterIamRoleDeployer().plan())
-    actions.extend(EventRegistryRegisterLambdaFunctionDeployer().plan())
     return {
       "layer": "core_l2",
       "actions": actions,
@@ -110,16 +106,6 @@ class L2Deployer(Deployer):
         and self._resource_matches(resource, deployment_state.last_applied_lambda_chain_step_function_name(), globals.lambda_chain_step_function_name())
       ):
         LambdaChainStepFunctionDeployer().apply(action, resource)
-      elif (
-        resource_type == "iam"
-        and self._resource_matches(resource, deployment_state.last_applied_event_registry_register_iam_role_name(), globals.event_registry_register_iam_role_name())
-      ):
-        EventRegistryRegisterIamRoleDeployer().apply(action, resource)
-      elif (
-        resource_type == "lambda_function"
-        and self._resource_matches(resource, deployment_state.last_applied_event_registry_register_lambda_function_name(), globals.event_registry_register_lambda_function_name())
-      ):
-        EventRegistryRegisterLambdaFunctionDeployer().apply(action, resource)
       else:
         raise ValueError(
           f"No core_l2 apply handler for {resource_type}/{resource}"
@@ -136,12 +122,8 @@ class L2Deployer(Deployer):
     EventCheckerLambdaFunctionDeployer().deploy()
     LambdaChainIamRoleDeployer().deploy()
     LambdaChainStepFunctionDeployer().deploy()
-    EventRegistryRegisterIamRoleDeployer().deploy()
-    EventRegistryRegisterLambdaFunctionDeployer().deploy()
 
   def destroy(self):
-    EventRegistryRegisterLambdaFunctionDeployer().destroy()
-    EventRegistryRegisterIamRoleDeployer().destroy()
     LambdaChainStepFunctionDeployer().destroy()
     LambdaChainIamRoleDeployer().destroy()
     EventCheckerLambdaFunctionDeployer().destroy()
@@ -160,5 +142,3 @@ class L2Deployer(Deployer):
     EventCheckerLambdaFunctionDeployer().info()
     LambdaChainIamRoleDeployer().info()
     LambdaChainStepFunctionDeployer().info()
-    EventRegistryRegisterIamRoleDeployer().info()
-    EventRegistryRegisterLambdaFunctionDeployer().info()

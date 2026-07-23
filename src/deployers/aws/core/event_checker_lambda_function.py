@@ -90,7 +90,7 @@ class EventCheckerLambdaFunctionDeployer(Deployer):
       Handler="lambda_function.lambda_handler", #  file.function
       Code={"ZipFile": util.compile_lambda_function(os.path.join(globals.core_lfs_path, "event-checker"))},
       Description="",
-      Timeout=3, # seconds
+      Timeout=900, # seconds
       MemorySize=128, # MB
       Publish=True,
       Environment={
@@ -98,7 +98,8 @@ class EventCheckerLambdaFunctionDeployer(Deployer):
           "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info()),
           "TWINMAKER_WORKSPACE_NAME": globals.twinmaker_workspace_name(),
           "LAMBDA_CHAIN_STEP_FUNCTION_ARN": lambda_chain_arn,
-          "EVENT_FEEDBACK_LAMBDA_FUNCTION_ARN": event_feedback_lambda_function_arn
+          "EVENT_FEEDBACK_LAMBDA_FUNCTION_ARN": event_feedback_lambda_function_arn,
+          "SSM_REGISTRY_PREFIX" : globals.ssm_registry_prefix()
         }
       }
     )

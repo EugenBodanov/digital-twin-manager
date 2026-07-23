@@ -264,9 +264,3 @@ def event_action_lambda_function_name(event_action):
 
 def ssm_registry_prefix():
   return resource_names.ssm_registry_prefix(config)
-
-def event_registry_register_iam_role_name():
-  return resource_names.event_registry_register_iam_role_name(config)
-
-def event_registry_register_lambda_function_name():
-  return resource_names.event_registry_register_lambda_function_name(config)

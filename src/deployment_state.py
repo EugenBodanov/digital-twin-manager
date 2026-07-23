@@ -124,17 +124,6 @@ def last_applied_lambda_chain_step_function_name():
   return resource_names.lambda_chain_step_function_name(_last_applied_config_snapshot())
 
 
-def last_applied_event_registry_register_iam_role_name():
-  return resource_names.event_registry_register_iam_role_name(
-    _last_applied_config_snapshot()
-  )
-
-
-def last_applied_event_registry_register_lambda_function_name():
-  return resource_names.event_registry_register_lambda_function_name(
-    _last_applied_config_snapshot()
-  )
-
 def last_applied_hot_cold_mover_iam_role_name():
   return resource_names.hot_cold_mover_iam_role_name(_last_applied_config_snapshot())
 

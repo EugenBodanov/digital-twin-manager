@@ -21,16 +21,17 @@ The TwinMaker hierarchy deployer is a separate post-IoT deployment phase, not a 
 - **Components:** Dispatcher IAM Role, Lambda Function, and IoT Rule.
 - **Purpose:** Listens to the shared MQTT topic (`<digitalTwinName>/iot-data`) and routes incoming messages to the correct device-specific processor Lambda. It does not store data or evaluate events.
 
-### Core L2: Processing, Persistence, Events, and Registry
+### Core L2: Processing, Persistence, Events, and Federation Routing
 
-- **Components:** Persister, Event-checker, Event-feedback, Event Registry Register Lambda, related IAM Roles, and the Lambda Chain Step Function.
+- **Components:** Persister, Event-checker, Event-feedback, related IAM Roles, and the Lambda Chain Step Function.
 - **Purpose:**
   - The Persister writes processed data into the hot DynamoDB table.
   - The Event-checker evaluates conditions from `config_events.json`.
   - Step Functions and Feedback Lambdas handle event actions and return MQTT feedback.
-  - The Event Registry Register Lambda exposes a Function URL for registering, deregistering, and listing custom event target addresses in AWS Systems Manager Parameter Store under `/<digitalTwinName>/event-registry/`.
+  - The Event-checker reads optional federation targets from AWS Systems Manager Parameter Store under `/<digitalTwinName>/event-registry/` and starts the registered Step Functions.
+  - After `deploy` or `apply`, the manager exports the twin's federation metadata, including the SSM prefix and available strategies, to `<digitalTwinName>_federation_input.json`.
 
-**Security note:** The Event Registry Register Function URL is created with `AuthType="NONE"` and a public invoke permission. Treat this URL as public; restrict, replace, or remove it before using the system in a production environment.
+The manager does not deploy an API for writing registry entries. Registry population is owned by the external federation component.
 
 ### Core L3: Storage Lifecycle (Hot, Cold, Archive)
 

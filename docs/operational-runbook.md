@@ -20,14 +20,14 @@ Before running `deploy`, ensure these files are correctly configured:
 
 ## Event Registry / FunctionRegistry Operations
 
-During Core L2 deployment, the manager creates an Event Registry Register Lambda and prints its Function URL. The endpoint stores custom event target addresses in SSM Parameter Store under `/<digitalTwinName>/event-registry/{eventName}`.
+After `deploy` or `apply`, the manager generates `<digitalTwinName>_federation_input.json`. It contains the SSM registry prefix and the strategies that an external federation component can connect.
 
-The Function URL is deployed without authentication (`AuthType="NONE"`), so treat it as a public endpoint:
+The manager only reads registry entries at `/<digitalTwinName>/event-registry/{eventName}`; it does not deploy a registration endpoint. For operational checks:
 
-- Do not publish the URL in shared logs, tickets, or documentation.
-- Add authentication or network controls before production use.
-- Delete or disable the Function URL if the registry is not required.
-- Use `info` to confirm the Function URL exists, and check the SSM path directly to verify registry entries.
+- Confirm that the generated federation input contains the expected `ssm_registry_prefix` and strategies.
+- Verify that the external federation component wrote JSON values with a `targets` array.
+- Verify that every target `address` is a Step Function ARN accessible to the Event-checker execution role.
+- If an entry is absent or invalid, the Event-checker falls back to the local action configured in `config_events.json`.
 
 ## Recommended Workflow
 
@@ -44,4 +44,4 @@ Because the tool currently creates not updates, the safest workflow for configur
 - **Resource Already Exists:** Since there is no update engine, if a deploy fails halfway or a resource name collides, you must run `destroy` or manually delete the conflicting AWS resource before redeploying.
 - **Renaming Dangers:** Never change `digital_twin_name` or `iotDeviceId` between deployments without destroying first, otherwise, the tool will lose track of the old resources.
 - **S3 Deletion:** During manual cleanup, remember that S3 buckets must be emptied before they can be deleted.
-- **Public Registry Endpoint:** If the Event Registry Register Function URL was created during deploy, confirm whether it should remain enabled. It is unauthenticated by default.
+- **Missing Federation Route:** Check the SSM path and entry format. A missing route intentionally falls back to the local action.

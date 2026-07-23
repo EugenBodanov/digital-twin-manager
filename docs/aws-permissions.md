@@ -46,7 +46,7 @@ iam:PassRole
 
 ### Lambda
 
-Used for core Lambdas, per-device processor Lambdas, optional internal event action Lambdas, Lambda invoke permissions, and the Event Registry Register Function URL.
+Used for core Lambdas, per-device processor Lambdas, optional internal event action Lambdas, and Lambda invoke permissions.
 
 ```text
 lambda:CreateFunction
@@ -55,9 +55,6 @@ lambda:GetPolicy
 lambda:DeleteFunction
 lambda:AddPermission
 lambda:RemovePermission
-lambda:CreateFunctionUrlConfig
-lambda:GetFunctionUrlConfig
-lambda:DeleteFunctionUrlConfig
 ```
 
 Internal event action Lambdas are only created when `config_events.json` contains an action with `"external": false`. The current checked-in configuration uses `"external": true`, but the application code supports internal actions.
@@ -267,10 +264,7 @@ The following policy is intended for the IAM principal whose access keys are sto
         "lambda:GetPolicy",
         "lambda:DeleteFunction",
         "lambda:AddPermission",
-        "lambda:RemovePermission",
-        "lambda:CreateFunctionUrlConfig",
-        "lambda:GetFunctionUrlConfig",
-        "lambda:DeleteFunctionUrlConfig"
+        "lambda:RemovePermission"
       ],
       "Resource": "*"
     },
@@ -413,7 +407,7 @@ arn:aws:iam::aws:policy/AWSIoTDataAccess
 arn:aws:iam::aws:policy/AmazonS3FullAccess
 ```
 
-The Event Registry Register Lambda receives an inline SSM policy for the `/<digitalTwinName>/event-registry` parameter path. The deployment principal does not call SSM directly; it creates that inline runtime policy with `iam:PutRolePolicy`.
+The Event-checker Lambda receives an inline `ssm:GetParameter` policy for the `/<digitalTwinName>/event-registry/*` parameter path. The deployment principal does not call SSM directly; it creates that inline runtime policy with `iam:PutRolePolicy`. The external federation component that populates the registry needs its own SSM write permissions.
 
 ## Notes
 

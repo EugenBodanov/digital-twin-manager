@@ -97,6 +97,11 @@ class EventCheckerIamRoleDeployer(Deployer):
               "Resource": "*"
             },
             {
+    "Effect": "Allow",
+    "Action": ["ssm:GetParameter"],
+    "Resource": f"arn:aws:ssm:*:*:parameter{globals.ssm_registry_prefix()}/*"
+}
+,            {
               "Effect": "Allow",
               "Action": [
                 "iottwinmaker:*",

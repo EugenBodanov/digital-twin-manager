@@ -17,6 +17,7 @@ The event process is triggered by the **Persister Lambda** immediately after new
 1.  **Value Fetching:** The Event-checker does not query DynamoDB directly. It requests property values through **AWS IoT TwinMaker**, which uses the **Hot-reader Lambda** to pull data from hot storage.
 2.  **Condition Evaluation:** The Event-checker parses simple comparisons (`<`, `>`, `==`) by splitting strings on spaces.
 3.  **Execution Paths:**
+    - **Federated Action:** If SSM contains registered targets for the event, the Event-checker starts each target Step Function with the resolved input parameters.
     - **Simple Action:** If the condition is true and no feedback is configured, the Event-checker invokes the **Action Lambda** directly.
     - **Feedback Flow:** If feedback is required, the Event-checker triggers the **Lambda Chain Step Function**. This orchestrates a sequence: **Action Lambda** → **Event-feedback Lambda**.
 
@@ -28,13 +29,13 @@ The event process is triggered by the **Persister Lambda** immediately after new
 
 ## Event Registry / FunctionRegistry
 
-Core L2 also deploys an **Event Registry Register Lambda**. This is separate from the runtime event evaluation loop described above.
+Core L2 reads federation routing entries from AWS Systems Manager Parameter Store at `/<digitalTwinName>/event-registry/{eventName}`.
 
-- **Purpose:** Provides a small registry API for custom event target addresses.
-- **Storage:** Writes registry entries to AWS Systems Manager Parameter Store under `/<digitalTwinName>/event-registry/{eventName}`.
-- **Endpoint:** Exposes a Lambda Function URL that supports registering, deregistering, and listing entries.
-- **Security:** The Function URL is created with `AuthType="NONE"` and a public invoke permission. Do not expose it in production without adding authentication, network controls, or replacing it with a protected API.
-- **Current Flow:** The Event-checker still evaluates `config_events.json` and invokes action Lambdas from that configuration. The registry endpoint is an auxiliary registration mechanism and is not the source of truth for the current Event-checker logic.
+- **Reader:** The Event-checker has read-only access to the twin's registry path.
+- **Writer:** An external federation component owns registry population; the manager does not deploy a registration Lambda or Function URL.
+- **Format:** Each SSM value is JSON with a `targets` array. Every target contains an `address` identifying a Step Function state machine ARN.
+- **Federation input:** After `deploy` or `apply`, the manager writes `<digitalTwinName>_federation_input.json` with the SSM prefix, available strategies, Hot-reader ARN, and TwinMaker workspace ID.
+- **Fallback:** If no registry entry exists, the Event-checker uses the local action/feedback flow from `config_events.json`.
 
 ## Key Distinctions
 
@@ -45,4 +46,4 @@ Core L2 also deploys an **Event Registry Register Lambda**. This is separate fro
 | **Event-checker**  | Evaluates rules in `config_events.json`.         | Persister Lambda.               |
 | **Action**         | Performs business logic when conditions are met. | Event-checker or Step Function. |
 | **Event-feedback** | Sends MQTT notifications after an action.        | Step Function.                  |
-| **Event Registry Register** | Registers custom event target addresses in SSM. | Public Lambda Function URL.     |
+| **Federation target** | Runs a federated strategy registered in SSM. | Event-checker via Step Functions. |

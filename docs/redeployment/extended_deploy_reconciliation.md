@@ -11,7 +11,7 @@ Transform the `deploy` command from create-only into an idempotent reconciliatio
 
 To preserve modularity, the system should use isolated, resource-specific reconcilers (e.g., `LambdaReconciler`, `DynamoDBTableReconciler`) instead of a single global reconciler.
 
-Current deployers also create resource attachments that must be reconciled explicitly or as owned child changes, such as Lambda invoke permissions, the Event Registry Lambda Function URL, EventBridge targets, IoT certificates/policies, and TwinMaker components attached to entities.
+Current deployers also create resource attachments that must be reconciled explicitly or as owned child changes, such as Lambda invoke permissions, EventBridge targets, IoT certificates/policies, and TwinMaker components attached to entities.
 
 ---
 
@@ -30,8 +30,8 @@ Compares only the **Desired State** (configuration files) directly against the *
   - Apply only safe mutable updates automatically.
   - Mark immutable changes as `REPLACE_REQUIRED` and fail by default unless an explicit flag allows replacement.
   - Start with low-risk mutable resources such as Lambda code/configuration, EventBridge schedules/targets, IoT rule payloads, and IAM inline policy documents.
-  - Include Lambda invoke permissions and the Event Registry Function URL in the same reconciliation boundary as their owning Lambda/rule resources.
-  - Do not treat SSM registry values or CloudWatch log groups as current deployer-managed resources; SSM registry values are runtime data managed by the deployed Event Registry Lambda, and CloudWatch log groups are implicit AWS/Lambda resources in the current code.
+  - Include Lambda invoke permissions in the same reconciliation boundary as their owning Lambda/rule resources.
+  - Do not treat SSM registry values or CloudWatch log groups as current deployer-managed resources; SSM registry values are managed by the external federation component, and CloudWatch log groups are implicit AWS/Lambda resources in the current code.
   - Treat stateful or identity-sensitive resources, such as DynamoDB tables, S3 buckets, TwinMaker workspace IDs, IoT Things, certificates, and local IoT auth files, as no-op or replacement-required until their safe update rules are explicitly designed.
 
 ---
