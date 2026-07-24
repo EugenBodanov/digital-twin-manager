@@ -77,13 +77,25 @@ def fetch_value(entity_id, component_name, property_name):
 
 
 def extract_const_value(string):
-    if string.startswith("DOUBLE"):
+    if string.startswith("DOUBLE(") and string.endswith(")"):
         return float(string[7:-1])
-    elif string.startswith("INTEGER"):
+    elif string.startswith("INTEGER(") and string.endswith(")"):
         return int(string[8:-1])
-    elif string.startswith("STRING"):
+    elif string.startswith("STRING(") and string.endswith(")"):
         return string[7:-1]
     return string
+
+
+def is_typed_constant(value):
+    return value.startswith(("DOUBLE(", "INTEGER(", "STRING(")) and value.endswith(")")
+
+
+def resolve_condition_value(value):
+    if is_typed_constant(value):
+        return extract_const_value(value)
+    if "." in value:
+        return fetch_value(*value.split("."))
+    return extract_const_value(value)
 
 
 def resolve_input_parameters(e):
@@ -118,6 +130,35 @@ def resolve_lambda_arn(function_name):
     return response["Configuration"]["FunctionArn"]
 
 
+def invoke_registry_target(entry, payload):
+    address = entry["address"]
+    target_type = entry.get("type") or entry.get("addressType")
+
+    if not target_type:
+        if ":lambda:" in address:
+            target_type = "lambda"
+        elif ":states:" in address:
+            target_type = "step_function"
+
+    normalized_type = str(target_type).lower().replace("-", "_")
+    if normalized_type == "lambda":
+        print(f"FunctionRegistry: invoking Lambda {address}")
+        return lambda_client.invoke(
+            FunctionName=address,
+            InvocationType="Event",
+            Payload=json.dumps(payload).encode("utf-8")
+        )
+
+    if normalized_type in {"step_function", "stepfunctions", "states"}:
+        print(f"FunctionRegistry: starting Step Function {address}")
+        return sf_client.start_execution(
+            stateMachineArn=address,
+            input=json.dumps(payload)
+        )
+
+    raise ValueError(f"Unsupported FunctionRegistry target type '{target_type}' for {address}")
+
+
 def fire_action(e, input_params, registry_entry):
     action = e["action"]
     has_feedback = "feedback" in action
@@ -125,12 +166,7 @@ def fire_action(e, input_params, registry_entry):
     print(f"Fire action {action}")
     if registry_entry:
         for entry in registry_entry:
-            address = entry["address"]
-            print(f"FunctionRegistry: redirecting to Step Function {address}")
-            sf_client.start_execution(
-                    stateMachineArn=address,
-                    input=json.dumps(payload)
-                )
+            invoke_registry_target(entry, payload)
         return
 
     #Default execution
@@ -162,19 +198,23 @@ def lambda_handler(event, context):
             condition = e["condition"]
             param1, operation, param2 = condition.split()
 
-            condition_properties = {p.split(".")[-1] for p in [param1, param2] if "." in p}
+            condition_properties = {
+                p.split(".")[-1]
+                for p in [param1, param2]
+                if "." in p and not is_typed_constant(p)
+            }
             print(f"Checking condition '{condition}' — relevant properties: {condition_properties}")
 
             if trigger_keys and not trigger_keys.intersection(condition_properties):
                 print(f"Skipping — trigger {trigger_keys} not relevant for {condition_properties}")
                 continue
 
-            param1_value = fetch_value(*param1.split(".")) if "." in param1 else extract_const_value(param1)
+            param1_value = resolve_condition_value(param1)
             if param1_value is None:
                 print(f"No value yet for {param1}, skipping event")
                 continue
 
-            param2_value = fetch_value(*param2.split(".")) if "." in param2 else extract_const_value(param2)
+            param2_value = resolve_condition_value(param2)
             if param2_value is None:
                 print(f"No value yet for {param2}, skipping event")
                 continue
