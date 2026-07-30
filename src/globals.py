@@ -3,6 +3,8 @@ import os
 import boto3
 import resource_names
 
+CONFIG_DIR_ENV = "DIGITAL_TWIN_MANAGER_CONFIG_DIR"
+
 
 iot_data_path = "iot_devices_auth"
 core_lfs_path = "lambda_functions/core"
@@ -31,35 +33,80 @@ aws_iot_data_client = {}
 def project_path():
   return os.path.dirname(os.path.dirname(__file__))
 
+
+def config_dir_path():
+  return os.getenv(CONFIG_DIR_ENV) or project_path()
+
+
+def config_path(file_name):
+  return os.path.join(config_dir_path(), file_name)
+
+
 def initialize_config():
   global config
-  with open(f"{project_path()}/config.json", "r") as file:
+  with open(config_path("config.json"), "r") as file:
     config = json.load(file)
+
 
 def initialize_config_iot_devices():
   global config_iot_devices
-  with open(f"{project_path()}/config_iot_devices.json", "r") as file:
+  with open(config_path("config_iot_devices.json"), "r") as file:
     config_iot_devices = json.load(file)
+
 
 def initialize_config_events():
   global config_events
-  with open(f"{project_path()}/config_events.json", "r") as file:
+  with open(config_path("config_events.json"), "r") as file:
     config_events = json.load(file)
+
 
 def initialize_config_hierarchy():
   global config_hierarchy
-  with open(f"{project_path()}/config_hierarchy.json", "r") as file:
+  with open(config_path("config_hierarchy.json"), "r") as file:
     config_hierarchy = json.load(file)
+
 
 def initialize_config_providers():
   global config_providers
-  with open(f"{project_path()}/config_providers.json", "r") as file:
+  with open(config_path("config_providers.json"), "r") as file:
     config_providers = json.load(file)
+
 
 def initialize_config_credentials():
   global config_credentials
-  with open(f"{project_path()}/config_credentials.json", "r") as file:
-    config_credentials = json.load(file)
+  config_credentials = {}
+  credentials_path = config_path("config_credentials.json")
+
+  if os.path.exists(credentials_path):
+    with open(credentials_path, "r") as file:
+      config_credentials = json.load(file)
+
+  environment_credentials = {
+    "aws_access_key_id": os.getenv("AWS_ACCESS_KEY_ID"),
+    "aws_secret_access_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
+    "aws_region": os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
+  }
+
+  config_credentials.update({
+    key: value
+    for key, value in environment_credentials.items()
+    if value
+  })
+
+  missing_keys = [
+    key
+    for key in environment_credentials
+    if not config_credentials.get(key)
+  ]
+
+  if missing_keys:
+    raise RuntimeError(
+      f"Missing AWS credential fields: {', '.join(missing_keys)}. "
+      f"Provide config_credentials.json in {config_dir_path()} or set "
+      "AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and "
+      "AWS_REGION/AWS_DEFAULT_REGION."
+    )
+
 
 def digital_twin_info():
   return {

@@ -9,6 +9,7 @@ import resource_names
 
 STATE_VERSION = 1
 STATE_DIR_NAME = ".digital-twin-manager-state"
+STATE_DIR_ENV = "DIGITAL_TWIN_MANAGER_STATE_DIR"
 STATE_CONFIG_DIR_NAME = "configs"
 STATE_METADATA_FILE_NAME = "metadata.json"
 STATE_PLAN_FILE_NAME = "plan.json"
@@ -28,7 +29,10 @@ last_applied_state_metadata = {}
 
 
 def state_dir_path():
-  return os.path.join(globals.project_path(), STATE_DIR_NAME)
+  return (
+    os.getenv(STATE_DIR_ENV)
+    or os.path.join(globals.project_path(), STATE_DIR_NAME)
+  )
 
 
 def state_config_dir_path():
@@ -205,7 +209,7 @@ def _write_json(path, value):
 
 
 def _copy_config_file(file_name):
-  source_path = os.path.join(globals.project_path(), file_name)
+  source_path = globals.config_path(file_name)
 
   if not os.path.isfile(source_path):
     raise FileNotFoundError(f"Config file does not exist: {source_path}")
