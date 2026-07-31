@@ -104,6 +104,20 @@ def valid_config_events():
           "iotDeviceId": "sensor-2",
           "payload": "action-result",
         },
+        "inputParameters": [
+          {
+            "name": "threshold",
+            "dataType": "INTEGER",
+            "id": "room-1.temperatureSensor.threshold",
+            "value": 80,
+          },
+        ],
+        "outputParameters": [
+          {
+            "name": "status",
+            "dataType": "STRING",
+          },
+        ],
       },
     },
   ]

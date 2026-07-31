@@ -56,6 +56,22 @@ class CrossConfigValidationTests(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "action.feedback.iotDeviceId"):
       self._validate(configs)
 
+  def test_input_parameter_unknown_property_fails(self) -> None:
+    configs = valid_config_set()
+    parameter = configs["config_events"][0]["action"]["inputParameters"][0]
+    parameter["id"] = "room-1.temperatureSensor.missing"
+
+    with self.assertRaisesRegex(ValueError, "inputParameters.*unknown property"):
+      self._validate(configs)
+
+  def test_input_parameter_data_type_mismatch_fails(self) -> None:
+    configs = valid_config_set()
+    parameter = configs["config_events"][0]["action"]["inputParameters"][0]
+    parameter["dataType"] = "DOUBLE"
+
+    with self.assertRaisesRegex(ValueError, "referenced property dataType"):
+      self._validate(configs)
+
   def test_provider_incompatibility_fails(self) -> None:
     configs = valid_config_set()
     configs["config_providers"] = clone(configs["config_providers"])

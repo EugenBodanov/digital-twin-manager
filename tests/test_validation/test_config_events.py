@@ -59,6 +59,48 @@ class ConfigEventsValidationTests(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "duplicates another internal"):
       config_events.validate(value)
 
+  def test_input_parameter_requires_id_or_value(self) -> None:
+    value = valid_config_events()
+    del value[0]["action"]["inputParameters"][0]["id"]
+    del value[0]["action"]["inputParameters"][0]["value"]
+
+    with self.assertRaisesRegex(ValueError, "at least one of"):
+      config_events.validate(value)
+
+  def test_input_parameter_value_must_match_data_type(self) -> None:
+    value = valid_config_events()
+    value[0]["action"]["inputParameters"][0]["value"] = "80"
+
+    with self.assertRaisesRegex(ValueError, "must be an integer"):
+      config_events.validate(value)
+
+  def test_input_parameter_with_value_only_passes(self) -> None:
+    value = valid_config_events()
+    del value[0]["action"]["inputParameters"][0]["id"]
+
+    config_events.validate(value)
+
+  def test_duplicate_output_parameter_name_fails(self) -> None:
+    value = valid_config_events()
+    value[0]["action"]["outputParameters"].append(
+      clone(value[0]["action"]["outputParameters"][0])
+    )
+
+    with self.assertRaisesRegex(ValueError, "is duplicated"):
+      config_events.validate(value)
+
+  def test_vector_parameter_value_passes(self) -> None:
+    value = valid_config_events()
+    value[0]["action"]["inputParameters"] = [
+      {
+        "name": "samples",
+        "dataType": "VECTOR_DOUBLE",
+        "value": [1, 2.5],
+      },
+    ]
+
+    config_events.validate(value)
+
   def test_decimal_typed_constant_fails_current_runtime_parser(self) -> None:
     value = clone(valid_config_events())
     value[0]["condition"] = "room-1.temperatureSensor.temperature > DOUBLE(80.5)"

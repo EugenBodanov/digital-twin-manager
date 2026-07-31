@@ -10,6 +10,7 @@ from .common import (
   require_no_unknown_keys,
   require_string,
 )
+from .data_types import validate_data_type, validate_typed_value
 
 
 CONFIG_NAME = "config_events.json"
@@ -30,7 +31,21 @@ ACTION_REQUIRED_KEYS = {
 ACTION_OPTIONAL_KEYS = {
   "pathToCode",
   "feedback",
+  "inputParameters",
+  "outputParameters",
 }
+
+PARAMETER_REQUIRED_KEYS = {
+  "name",
+  "dataType",
+}
+
+INPUT_PARAMETER_OPTIONAL_KEYS = {
+  "id",
+  "value",
+}
+
+OUTPUT_PARAMETER_OPTIONAL_KEYS = set()
 
 FEEDBACK_REQUIRED_KEYS = {
   "type",
@@ -156,6 +171,87 @@ def _validate_action(action, field, seen_internal_function_names):
 
   if "feedback" in action:
     _validate_feedback(action["feedback"], f"{field}.feedback")
+
+  if "inputParameters" in action:
+    _validate_parameters(
+      action["inputParameters"],
+      f"{field}.inputParameters",
+      input_parameters=True,
+    )
+
+  if "outputParameters" in action:
+    _validate_parameters(
+      action["outputParameters"],
+      f"{field}.outputParameters",
+      input_parameters=False,
+    )
+
+
+def _validate_parameters(parameters, field, input_parameters):
+  require_list(parameters, field)
+
+  seen_names = set()
+
+  for index, parameter in enumerate(parameters):
+    _validate_parameter(
+      parameter,
+      f"{field}[{index}]",
+      seen_names,
+      input_parameters,
+    )
+
+
+def _validate_parameter(parameter, field, seen_names, input_parameter):
+  require_dict(parameter, field)
+  require_keys(parameter, PARAMETER_REQUIRED_KEYS, field)
+
+  optional_keys = (
+    INPUT_PARAMETER_OPTIONAL_KEYS
+    if input_parameter
+    else OUTPUT_PARAMETER_OPTIONAL_KEYS
+  )
+  require_no_unknown_keys(
+    parameter,
+    PARAMETER_REQUIRED_KEYS | optional_keys,
+    field,
+  )
+
+  _validate_parameter_name(parameter["name"], f"{field}.name", seen_names)
+  validate_data_type(parameter["dataType"], f"{field}.dataType")
+
+  if not input_parameter:
+    return
+
+  if not (INPUT_PARAMETER_OPTIONAL_KEYS & parameter.keys()):
+    raise ValueError(f"{field} must contain at least one of: id, value")
+
+  if "id" in parameter:
+    _validate_parameter_id(parameter["id"], f"{field}.id")
+
+  if "value" in parameter:
+    validate_typed_value(
+      parameter["value"],
+      parameter["dataType"],
+      f"{field}.value",
+    )
+
+
+def _validate_parameter_name(value, field, seen_names):
+  require_string(value, field)
+
+  if value in seen_names:
+    raise ValueError(f"{field} is duplicated: {value}")
+
+  seen_names.add(value)
+
+
+def _validate_parameter_id(value, field):
+  require_string(value, field)
+
+  if not re.fullmatch(PATH_OPERAND_PATTERN, value):
+    raise ValueError(
+      f"{field} must be a path 'entity.component.property'."
+    )
 
 
 def _validate_feedback(feedback, field):

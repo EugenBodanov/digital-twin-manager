@@ -28,6 +28,11 @@ def validate(
     hierarchy_entities,
     iot_devices_by_id,
   )
+  _validate_event_input_parameter_references(
+    config_events,
+    hierarchy_entities,
+    iot_devices_by_id,
+  )
   _validate_event_feedback_iot_device_references(
     config_events,
     iot_devices_by_id,
@@ -149,7 +154,59 @@ def _validate_event_condition_operand_reference(
   hierarchy_entities,
   iot_devices_by_id,
 ):
-  parts = operand.split(".")
+  _referenced_iot_property(
+    operand,
+    field,
+    hierarchy_entities,
+    iot_devices_by_id,
+  )
+
+
+def _validate_event_input_parameter_references(
+  config_events,
+  hierarchy_entities,
+  iot_devices_by_id,
+):
+  for event_index, event in enumerate(config_events):
+    input_parameters = event["action"].get("inputParameters", [])
+
+    for parameter_index, parameter in enumerate(input_parameters):
+      reference = parameter.get("id")
+
+      if reference is None:
+        continue
+
+      parameter_field = (
+        f"config_events.json[{event_index}].action."
+        f"inputParameters[{parameter_index}]"
+      )
+      iot_property = _referenced_iot_property(
+        reference,
+        f"{parameter_field}.id",
+        hierarchy_entities,
+        iot_devices_by_id,
+      )
+
+      if iot_property is None:
+        continue
+
+      parameter_data_type = parameter["dataType"]
+      property_data_type = iot_property["dataType"]
+
+      if parameter_data_type != property_data_type:
+        raise ValueError(
+          f"{parameter_field}.dataType is '{parameter_data_type}', but "
+          f"the referenced property dataType is '{property_data_type}'."
+        )
+
+
+def _referenced_iot_property(
+  reference,
+  field,
+  hierarchy_entities,
+  iot_devices_by_id,
+):
+  parts = reference.split(".")
 
   if len(parts) != 3:
     return
@@ -183,13 +240,16 @@ def _validate_event_condition_operand_reference(
       f"config_iot_devices.json id: {iot_device_id}"
     )
 
-  property_names = _iot_device_property_names(iot_device)
+  properties_by_name = _iot_device_properties_by_name(iot_device)
+  iot_property = properties_by_name.get(property_name)
 
-  if property_name not in property_names:
+  if iot_property is None:
     raise ValueError(
       f"{field} references unknown property '{property_name}' on "
       f"config_iot_devices.json device: {iot_device_id}"
     )
+
+  return iot_property
 
 
 def _validate_event_feedback_iot_device_references(
@@ -219,9 +279,9 @@ def _iot_devices_by_id(config_iot_devices):
   }
 
 
-def _iot_device_property_names(iot_device):
+def _iot_device_properties_by_name(iot_device):
   return {
-    iot_property["name"]
+    iot_property["name"]: iot_property
     for iot_property in iot_device["properties"]
   }
 

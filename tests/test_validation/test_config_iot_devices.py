@@ -36,6 +36,31 @@ class ConfigIotDevicesValidationTests(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "must be an integer"):
       config_iot_devices.validate(value)
 
+  def test_vector_data_type_and_init_value_pass(self) -> None:
+    value = valid_config_iot_devices()
+    value[0]["properties"].append(
+      {
+        "name": "samples",
+        "dataType": "VECTOR_DOUBLE",
+        "initValue": [1, 2.5],
+      }
+    )
+
+    config_iot_devices.validate(value)
+
+  def test_vector_init_value_element_type_mismatch_fails(self) -> None:
+    value = valid_config_iot_devices()
+    value[0]["properties"].append(
+      {
+        "name": "samples",
+        "dataType": "VECTOR_INTEGER",
+        "initValue": [1, "2"],
+      }
+    )
+
+    with self.assertRaisesRegex(ValueError, r"initValue\[1\].*integer"):
+      config_iot_devices.validate(value)
+
 
 if __name__ == "__main__":
   unittest.main()

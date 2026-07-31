@@ -1,13 +1,16 @@
 import re
 
 from .common import (
-  keys_text,
-  require_bool,
   require_dict,
   require_keys,
   require_list,
   require_no_unknown_keys,
   require_string,
+)
+from .data_types import (
+  SUPPORTED_DATA_TYPES,
+  validate_data_type,
+  validate_typed_value,
 )
 
 
@@ -27,14 +30,6 @@ PROPERTY_REQUIRED_KEYS = {
 
 PROPERTY_OPTIONAL_KEYS = {
   "initValue",
-}
-
-SUPPORTED_DATA_TYPES = {
-  "BOOLEAN",
-  "DOUBLE",
-  "INTEGER",
-  "LONG",
-  "STRING",
 }
 
 IOT_DEVICE_ID_PATTERN = r"[A-Za-z0-9_-]+"
@@ -104,10 +99,10 @@ def _validate_property(iot_property, field, seen_property_names):
     f"{field}.name",
     seen_property_names,
   )
-  _validate_data_type(iot_property["dataType"], f"{field}.dataType")
+  validate_data_type(iot_property["dataType"], f"{field}.dataType")
 
   if "initValue" in iot_property:
-    _validate_init_value(
+    validate_typed_value(
       iot_property["initValue"],
       iot_property["dataType"],
       f"{field}.initValue",
@@ -129,37 +124,3 @@ def _validate_property_name(value, field, seen_property_names):
     raise ValueError(f"{field} is duplicated: {value}")
 
   seen_property_names.add(value)
-
-
-def _validate_data_type(value, field):
-  require_string(value, field)
-
-  if value not in SUPPORTED_DATA_TYPES:
-    raise ValueError(
-      f"{field} must be one of: {keys_text(SUPPORTED_DATA_TYPES)}"
-    )
-
-
-def _validate_init_value(value, data_type, field):
-  if data_type == "BOOLEAN":
-    require_bool(value, field)
-  elif data_type == "DOUBLE":
-    _require_number(value, field)
-  elif data_type in {"INTEGER", "LONG"}:
-    _require_integer(value, field)
-  elif data_type == "STRING":
-    _require_string_value(value, field)
-
-def _require_number(value, field):
-  if isinstance(value, bool) or not isinstance(value, (int, float)):
-    raise ValueError(f"{field} must be a number.")
-
-
-def _require_integer(value, field):
-  if isinstance(value, bool) or not isinstance(value, int):
-    raise ValueError(f"{field} must be an integer.")
-
-
-def _require_string_value(value, field):
-  if not isinstance(value, str):
-    raise ValueError(f"{field} must be a string.")
