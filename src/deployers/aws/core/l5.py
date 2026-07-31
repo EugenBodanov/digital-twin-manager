@@ -1,7 +1,11 @@
 from deployers.aws.core.grafana_iam_role import GrafanaIamRoleDeployer
 from deployers.aws.core.grafana_workspace import GrafanaWorkspaceDeployer
 from deployers.aws.core.plan_actions import sort_actions_for_apply
-from deployers.aws.apply_actions import pending_actions
+from deployers.aws.apply_actions import (
+  ACTION_DEPLOY,
+  ACTION_DESTROY,
+  pending_actions,
+)
 from deployers.base import Deployer
 import deployment_state
 import globals
@@ -21,9 +25,17 @@ class L5Deployer(Deployer):
     print(message)
 
   def plan(self):
-    actions = []
-    actions.extend(GrafanaIamRoleDeployer().plan())
-    actions.extend(GrafanaWorkspaceDeployer().plan())
+    grafana_actions = [
+      *GrafanaIamRoleDeployer().plan(),
+      *GrafanaWorkspaceDeployer().plan(),
+    ]
+    # Cleanup actions keep TwinMaker replacement valid in the dependency graph.
+    actions = [
+      action
+      for action in grafana_actions
+      if action["action"] == ACTION_DESTROY
+    ]
+
     return {
       "layer": "core_l5",
       "actions": actions,
@@ -49,15 +61,30 @@ class L5Deployer(Deployer):
       resource_type = action["resource_type"]
       resource = action["resource"]
 
-      if (
+      is_grafana_iam_role = (
         resource_type == "iam"
-        and resource in [deployment_state.last_applied_grafana_iam_role_name(), globals.grafana_iam_role_name()]
-      ):
-        GrafanaIamRoleDeployer().apply(action, resource)
-      elif (
+        and resource in [
+          deployment_state.last_applied_grafana_iam_role_name(),
+          globals.grafana_iam_role_name(),
+        ]
+      )
+      is_grafana_workspace = (
         resource_type == "grafana_workspace"
-        and resource in [deployment_state.last_applied_grafana_workspace_name(), globals.grafana_workspace_name()]
+        and resource in [
+          deployment_state.last_applied_grafana_workspace_name(),
+          globals.grafana_workspace_name(),
+        ]
+      )
+
+      if action_name == ACTION_DEPLOY and (
+        is_grafana_iam_role or is_grafana_workspace
       ):
+        self.log(
+          f"Skipping disabled Grafana deployment: {resource_type}/{resource}"
+        )
+      elif is_grafana_iam_role:
+        GrafanaIamRoleDeployer().apply(action, resource)
+      elif is_grafana_workspace:
         GrafanaWorkspaceDeployer().apply(action, resource)
       else:
         raise ValueError(
@@ -67,8 +94,10 @@ class L5Deployer(Deployer):
       deployment_state.mark_plan_action_processed("core", layer_name, action)
 
   def deploy(self):
-    GrafanaIamRoleDeployer().deploy()
-    GrafanaWorkspaceDeployer().deploy()
+    # Grafana deployment is intentionally disabled.
+    # GrafanaIamRoleDeployer().deploy()
+    # GrafanaWorkspaceDeployer().deploy()
+    pass
 
   def destroy(self):
     GrafanaWorkspaceDeployer().destroy()
