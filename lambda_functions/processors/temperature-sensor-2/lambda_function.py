@@ -3,7 +3,6 @@ import json
 import boto3
 
 
-DIGITAL_TWIN_INFO = json.loads(os.environ.get("DIGITAL_TWIN_INFO", None))
 PERSISTER_LAMBDA_NAME = os.environ.get("PERSISTER_LAMBDA_NAME", None)
 
 lambda_client = boto3.client("lambda")

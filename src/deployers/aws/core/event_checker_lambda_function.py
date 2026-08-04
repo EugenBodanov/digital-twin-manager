@@ -88,20 +88,29 @@ class EventCheckerLambdaFunctionDeployer(Deployer):
       Runtime="python3.13",
       Role=role_arn,
       Handler="lambda_function.lambda_handler", #  file.function
-      Code={"ZipFile": util.compile_lambda_function(os.path.join(globals.core_lfs_path, "event-checker"))},
+      Code={
+        "ZipFile": util.compile_lambda_function(
+          os.path.join(globals.core_lfs_path, "event-checker"),
+          extra_files={
+            "config_events.json": json.dumps(
+              globals.config_events,
+              ensure_ascii=False,
+              separators=(",", ":"),
+            )
+          },
+        )
+      },
       Description="",
       Timeout=900, # seconds
       MemorySize=128, # MB
       Publish=True,
-      Environment={
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info()),
-          "TWINMAKER_WORKSPACE_NAME": globals.twinmaker_workspace_name(),
-          "LAMBDA_CHAIN_STEP_FUNCTION_ARN": lambda_chain_arn,
-          "EVENT_FEEDBACK_LAMBDA_FUNCTION_ARN": event_feedback_lambda_function_arn,
-          "SSM_REGISTRY_PREFIX" : globals.ssm_registry_prefix()
-        }
-      }
+      Environment=util.lambda_environment({
+        "DIGITAL_TWIN_NAME": globals.config["digital_twin_name"],
+        "TWINMAKER_WORKSPACE_NAME": globals.twinmaker_workspace_name(),
+        "LAMBDA_CHAIN_STEP_FUNCTION_ARN": lambda_chain_arn,
+        "EVENT_FEEDBACK_LAMBDA_FUNCTION_ARN": event_feedback_lambda_function_arn,
+        "SSM_REGISTRY_PREFIX": globals.ssm_registry_prefix()
+      })
     )
 
     self.log(f"Created Lambda function: {function_name}")

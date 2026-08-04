@@ -3,7 +3,6 @@ from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 from dependency_graph import plan_graph_ids
-import json
 import os
 import globals
 import util
@@ -29,7 +28,11 @@ class ColdArchiveMoverLambdaFunctionDeployer(Deployer):
         )
       ]
 
-    self.log(f"Cold to Archive Mover Lambda Function name changed from {previous_function_name} to {desired_function_name}.")
+    if previous_function_name != desired_function_name:
+      self.log(f"Cold to Archive Mover Lambda Function name changed from {previous_function_name} to {desired_function_name}.")
+    if previous_role_name != desired_role_name:
+      self.log(f"Cold to Archive Mover IAM role name changed from {previous_role_name} to {desired_role_name}.")
+
     return [
       plan_action(
         previous_function_name,
@@ -62,13 +65,11 @@ class ColdArchiveMoverLambdaFunctionDeployer(Deployer):
       Timeout=3, # seconds
       MemorySize=128, # MB
       Publish=True,
-      Environment={
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info()),
-          "SOURCE_S3_BUCKET_NAME": globals.cold_s3_bucket_name(),
-          "TARGET_S3_BUCKET_NAME": globals.archive_s3_bucket_name()
-        }
-      }
+      Environment=util.lambda_environment({
+        "COLD_STORAGE_SIZE_IN_DAYS": str(globals.config["cold_storage_size_in_days"]),
+        "SOURCE_S3_BUCKET_NAME": globals.cold_s3_bucket_name(),
+        "TARGET_S3_BUCKET_NAME": globals.archive_s3_bucket_name()
+      })
     )
 
     self.log(f"Created Lambda function: {function_name}")

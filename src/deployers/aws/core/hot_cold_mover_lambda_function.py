@@ -9,6 +9,11 @@ import globals
 import util
 from botocore.exceptions import ClientError
 
+
+def _iot_device_ids(iot_devices):
+  return sorted(iot_device["id"] for iot_device in iot_devices)
+
+
 class HotColdMoverLambdaFunctionDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
@@ -55,24 +60,34 @@ class HotColdMoverLambdaFunctionDeployer(Deployer):
 
     response = globals.aws_iam_client.get_role(RoleName=role_name)
     role_arn = response["Role"]["Arn"]
+    iot_device_ids = _iot_device_ids(globals.config_iot_devices)
 
     globals.aws_lambda_client.create_function(
       FunctionName=function_name,
       Runtime="python3.13",
       Role=role_arn,
       Handler="lambda_function.lambda_handler", #  file.function
-      Code={"ZipFile": util.compile_lambda_function(os.path.join(globals.core_lfs_path, "hot-to-cold-mover"))},
+      Code={
+        "ZipFile": util.compile_lambda_function(
+          os.path.join(globals.core_lfs_path, "hot-to-cold-mover"),
+          extra_files={
+            "iot_device_ids.json": json.dumps(
+              iot_device_ids,
+              ensure_ascii=False,
+              separators=(",", ":"),
+            )
+          },
+        )
+      },
       Description="",
       Timeout=3, # seconds
       MemorySize=128, # MB
       Publish=True,
-      Environment={
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info()),
-          "DYNAMODB_TABLE_NAME": globals.hot_dynamodb_table_name(),
-          "S3_BUCKET_NAME": globals.cold_s3_bucket_name()
-        }
-      }
+      Environment=util.lambda_environment({
+        "HOT_STORAGE_SIZE_IN_DAYS": str(globals.config["hot_storage_size_in_days"]),
+        "DYNAMODB_TABLE_NAME": globals.hot_dynamodb_table_name(),
+        "S3_BUCKET_NAME": globals.cold_s3_bucket_name()
+      })
     )
 
     self.log(f"Created Lambda function: {function_name}")

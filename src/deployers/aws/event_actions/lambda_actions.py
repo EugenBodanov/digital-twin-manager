@@ -103,11 +103,6 @@ class LambdaActionsDeployer(Deployer):
       Timeout=3, # seconds
       MemorySize=128, # MB
       Publish=True,
-      Environment={
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info())
-        }
-      }
     )
 
     self.log(f"Created Lambda function: {function_name}")

@@ -2,7 +2,6 @@ from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.base import Deployer
 from deployers.aws.core.plan_actions import plan_action
 from dependency_graph import plan_graph_ids
-import json
 import os
 import globals
 import deployment_state
@@ -28,11 +27,9 @@ class DispatcherLambdaFunctionDeployer(Deployer):
       "Handler": "lambda_function.lambda_handler",
       "Timeout": 3,
       "MemorySize": 128,
-      "Environment": {
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(digital_twin_info),
-        }
-      }
+      "Environment": util.lambda_environment({
+        "DIGITAL_TWIN_NAME": digital_twin_info["config"]["digital_twin_name"],
+      })
     }
 
   def _previous_function_configuration(self):
@@ -55,8 +52,9 @@ class DispatcherLambdaFunctionDeployer(Deployer):
     actual_env = actual_configuration.get("Environment", {}).get("Variables", {})
     expected_env = expected_configuration["Environment"]["Variables"]
 
-    if actual_env.get("DIGITAL_TWIN_INFO") != expected_env["DIGITAL_TWIN_INFO"]:
-      changed_fields.append("Environment.DIGITAL_TWIN_INFO")
+    for name, expected_value in expected_env.items():
+      if actual_env.get(name) != expected_value:
+        changed_fields.append(f"Environment.{name}")
 
     return changed_fields
 
@@ -99,22 +97,15 @@ class DispatcherLambdaFunctionDeployer(Deployer):
 
     response = globals.aws_iam_client.get_role(RoleName=role_name)
     role_arn = response["Role"]["Arn"]
+    function_configuration = self._desired_function_configuration()
 
     globals.aws_lambda_client.create_function(
       FunctionName=function_name,
-      Runtime="python3.13",
       Role=role_arn,
-      Handler="lambda_function.lambda_handler", #  file.function
       Code={"ZipFile": util.compile_lambda_function(os.path.join(globals.core_lfs_path, "dispatcher"))},
       Description="",
-      Timeout=3, # seconds
-      MemorySize=128, # MB
       Publish=True,
-      Environment={
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info()),
-        }
-      }
+      **function_configuration,
     )
 
     self.log(f"Created Lambda function: {function_name}")

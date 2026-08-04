@@ -3,7 +3,6 @@ from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 from dependency_graph import plan_graph_ids
-import json
 import os
 import globals
 import util
@@ -60,12 +59,10 @@ class HotReaderLambdaFunctionDeployer(Deployer):
       Timeout=900, # seconds
       MemorySize=128, # MB
       Publish=True,
-      Environment={
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info()),
-          "DYNAMODB_TABLE_NAME": globals.hot_dynamodb_table_name()
-        }
-      }
+      Environment=util.lambda_environment({
+        "DIGITAL_TWIN_NAME": globals.config["digital_twin_name"],
+        "DYNAMODB_TABLE_NAME": globals.hot_dynamodb_table_name()
+      })
     )
 
     self.log(f"Created Lambda function: {function_name}")

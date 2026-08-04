@@ -5,7 +5,10 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 
 
-DIGITAL_TWIN_INFO = json.loads(os.environ.get("DIGITAL_TWIN_INFO", None))
+with open(os.path.join(os.path.dirname(__file__), "config_events.json"), encoding="utf-8") as config_file:
+    CONFIG_EVENTS = json.load(config_file)
+
+DIGITAL_TWIN_NAME = os.environ["DIGITAL_TWIN_NAME"]
 TWINMAKER_WORKSPACE_NAME = os.environ.get("TWINMAKER_WORKSPACE_NAME", None)
 LAMBDA_CHAIN_STEP_FUNCTION_ARN = os.environ.get("LAMBDA_CHAIN_STEP_FUNCTION_ARN", None)
 EVENT_FEEDBACK_LAMBDA_FUNCTION_ARN = os.environ.get("EVENT_FEEDBACK_LAMBDA_FUNCTION_ARN", None)
@@ -170,7 +173,7 @@ def fire_action(e, input_params, registry_entry):
         return
 
     #Default execution
-    function_name = DIGITAL_TWIN_INFO["config"]["digital_twin_name"] + "-" + action["functionName"]
+    function_name = DIGITAL_TWIN_NAME + "-" + action["functionName"]
     if not has_feedback:
         lambda_client.invoke(FunctionName=function_name, InvocationType="Event", Payload=json.dumps(payload).encode("utf-8"))
     else:
@@ -193,7 +196,7 @@ def lambda_handler(event, context):
     trigger_keys = set(event.keys()) - {"iotDeviceId", "time"}
     print(f"Trigger keys: {trigger_keys}")
 
-    for e in DIGITAL_TWIN_INFO["config_events"]:
+    for e in CONFIG_EVENTS:
         try:
             condition = e["condition"]
             param1, operation, param2 = condition.split()

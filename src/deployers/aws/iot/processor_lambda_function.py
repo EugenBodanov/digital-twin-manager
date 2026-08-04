@@ -3,7 +3,6 @@ from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
 from dependency_graph import plan_graph_ids
-import json
 import globals
 import os
 from botocore.exceptions import ClientError
@@ -131,12 +130,9 @@ class ProcessorLambdaFunctionDeployer(Deployer):
       Timeout=3, # seconds
       MemorySize=128, # MB
       Publish=True,
-      Environment={
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info()),
-          "PERSISTER_LAMBDA_NAME": globals.persister_lambda_function_name()
-        }
-      }
+      Environment=util.lambda_environment({
+        "PERSISTER_LAMBDA_NAME": globals.persister_lambda_function_name()
+      })
     )
 
     self.log(f"Created Lambda function: {function_name}")
