@@ -4,6 +4,7 @@
 .agents
 .digital-twin-manager-state
 
+.venv
 venv
 src/venv
 __pycache__

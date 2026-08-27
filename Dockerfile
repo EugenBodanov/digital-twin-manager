@@ -12,13 +12,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR ${APP_HOME}
 
-COPY requirements.txt ./requirements.txt
+COPY --from=ghcr.io/astral-sh/uv:0.12.3 /uv /uvx /bin/
 
-RUN python -m pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock ./
+
+RUN uv sync --locked --no-dev --no-cache
 
 COPY src ./src
 COPY lambda_functions ./lambda_functions
 COPY dependency/template.json ./dependency/
+
+ENV PATH="/opt/digital-twin-manager/.venv/bin:${PATH}"
 
 RUN mkdir -p \
     "${PIPELINE_INPUT_DIR}" \
