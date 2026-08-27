@@ -23,7 +23,7 @@ from deployers.aws.core.plan_actions import plan_action
 
 
 class L5DeployerTests(unittest.TestCase):
-  def test_plan_keeps_destroy_actions_only(self) -> None:
+  def test_plan_keeps_destroy_actions_only_when_grafana_disabled(self) -> None:
     destroy_role = plan_action("old-grafana", "iam", action=ACTION_DESTROY)
     deploy_role = plan_action("new-grafana", "iam", action=ACTION_DEPLOY)
     no_change_workspace = plan_action("grafana", "grafana_workspace")
@@ -39,6 +39,7 @@ class L5DeployerTests(unittest.TestCase):
     )
 
     with (
+      patch("deployers.aws.core.l5.deploy_managed_grafana", False),
       patch.object(
         GrafanaIamRoleDeployer,
         "plan",
@@ -62,8 +63,43 @@ class L5DeployerTests(unittest.TestCase):
       layer_plan["actions"],
     )
 
+  def test_plan_keeps_deploy_actions_when_grafana_enabled(self) -> None:
+    destroy_role = plan_action("old-grafana", "iam", action=ACTION_DESTROY)
+    deploy_role = plan_action("new-grafana", "iam", action=ACTION_DEPLOY)
+    destroy_workspace = plan_action(
+      "old-grafana",
+      "grafana_workspace",
+      action=ACTION_DESTROY,
+    )
+    deploy_workspace = plan_action(
+      "new-grafana",
+      "grafana_workspace",
+      action=ACTION_DEPLOY,
+    )
+
+    with (
+      patch("deployers.aws.core.l5.deploy_managed_grafana", True),
+      patch.object(
+        GrafanaIamRoleDeployer,
+        "plan",
+        return_value=[destroy_role, deploy_role],
+      ),
+      patch.object(
+        GrafanaWorkspaceDeployer,
+        "plan",
+        return_value=[destroy_workspace, deploy_workspace],
+      ),
+    ):
+      layer_plan = L5Deployer().plan()
+
+    self.assertEqual(
+      [destroy_role, deploy_role, destroy_workspace, deploy_workspace],
+      layer_plan["actions"],
+    )
+
   def test_deploy_does_not_create_grafana_resources(self) -> None:
     with (
+      patch("deployers.aws.core.l5.deploy_managed_grafana", False),
       patch.object(GrafanaIamRoleDeployer, "deploy") as deploy_role,
       patch.object(GrafanaWorkspaceDeployer, "deploy") as deploy_workspace,
     ):
@@ -72,7 +108,7 @@ class L5DeployerTests(unittest.TestCase):
     deploy_role.assert_not_called()
     deploy_workspace.assert_not_called()
 
-  def test_apply_skips_deploy_actions_from_an_existing_plan(self) -> None:
+  def test_apply_skips_deploy_actions_when_grafana_disabled(self) -> None:
     role_action = plan_action("dt-grafana", "iam", action=ACTION_DEPLOY)
     workspace_action = plan_action(
       "dt-grafana",
@@ -86,6 +122,7 @@ class L5DeployerTests(unittest.TestCase):
     self._patch_grafana_names()
 
     with (
+      patch("deployers.aws.core.l5.deploy_managed_grafana", False),
       patch.object(GrafanaIamRoleDeployer, "apply") as apply_role,
       patch.object(GrafanaWorkspaceDeployer, "apply") as apply_workspace,
       patch.object(deployment_state, "mark_plan_action_processed") as mark,
@@ -95,6 +132,47 @@ class L5DeployerTests(unittest.TestCase):
     apply_role.assert_not_called()
     apply_workspace.assert_not_called()
     self.assertEqual(2, mark.call_count)
+
+  def test_apply_runs_deploy_actions_when_grafana_enabled(self) -> None:
+    role_action = plan_action("dt-grafana", "iam", action=ACTION_DEPLOY)
+    workspace_action = plan_action(
+      "dt-grafana",
+      "grafana_workspace",
+      action=ACTION_DEPLOY,
+    )
+    layer_plan = {
+      "layer": "core_l5",
+      "actions": [workspace_action, role_action],
+    }
+    apply_order = []
+    self._patch_grafana_names()
+
+    with (
+      patch("deployers.aws.core.l5.deploy_managed_grafana", True),
+      patch.object(
+        GrafanaIamRoleDeployer,
+        "apply",
+        side_effect=lambda *_: apply_order.append("role"),
+      ) as apply_role,
+      patch.object(
+        GrafanaWorkspaceDeployer,
+        "apply",
+        side_effect=lambda *_: apply_order.append("workspace"),
+      ) as apply_workspace,
+      patch.object(deployment_state, "mark_plan_action_processed") as mark,
+    ):
+      L5Deployer().apply(layer_plan, ACTION_DEPLOY)
+
+    self.assertEqual(["role", "workspace"], apply_order)
+    apply_role.assert_called_once_with(role_action, "dt-grafana")
+    apply_workspace.assert_called_once_with(workspace_action, "dt-grafana")
+    self.assertEqual(
+      [
+        call("core", "core_l5", role_action),
+        call("core", "core_l5", workspace_action),
+      ],
+      mark.call_args_list,
+    )
 
   def test_apply_keeps_destroy_actions(self) -> None:
     role_action = plan_action("dt-grafana", "iam", action=ACTION_DESTROY)

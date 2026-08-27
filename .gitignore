@@ -9,3 +9,4 @@ __pycache__/
 **/zipped.zip
 
 src/venv/
+.env
