@@ -1,7 +1,7 @@
 import json
 import globals
-import json
-import globals
+
+
 def generate_federation_input():
     region = globals.config_credentials["aws_region"]
     ssm_prefix = globals.ssm_registry_prefix()

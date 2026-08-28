@@ -1,44 +1,99 @@
+import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import os
 import globals
 import util
 from botocore.exceptions import ClientError
 
+
+def _iot_device_ids(iot_devices):
+  return sorted(iot_device["id"] for iot_device in iot_devices)
+
+
 class HotColdMoverLambdaFunctionDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
 
-  def deploy(self):
-    function_name = globals.hot_cold_mover_lambda_function_name()
-    role_name = globals.hot_cold_mover_iam_role_name()
+  def plan(self):
+    previous_function_name = deployment_state.last_applied_hot_cold_mover_lambda_function_name()
+    desired_function_name = globals.hot_cold_mover_lambda_function_name()
+    previous_role_name = deployment_state.last_applied_hot_cold_mover_iam_role_name()
+    desired_role_name = globals.hot_cold_mover_iam_role_name()
+
+    if previous_function_name == desired_function_name and previous_role_name == desired_role_name:
+      self.log(f"Hot to Cold Mover Lambda function {desired_function_name} is up to date.")
+      return [
+        plan_action(
+          desired_function_name,
+          "lambda_function",
+          graph_id=plan_graph_ids.HOT_COLD_MOVER_LAMBDA,
+        )
+      ]
+
+    if previous_function_name != desired_function_name:
+      self.log(f"Hot to Cold Mover Lambda function name changed from {previous_function_name} to {desired_function_name}.")
+    if previous_role_name != desired_role_name:
+      self.log(f"Hot to Cold Mover IAM role name changed from {previous_role_name} to {desired_role_name}.")
+
+    return [
+      plan_action(
+        previous_function_name,
+        "lambda_function",
+        action="DESTROY",
+        graph_id=plan_graph_ids.HOT_COLD_MOVER_LAMBDA,
+      ),
+      plan_action(
+        desired_function_name,
+        "lambda_function",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.HOT_COLD_MOVER_LAMBDA,
+      ),
+    ]
+
+  def deploy(self, function_name=None, role_name=None):
+    function_name = function_name or globals.hot_cold_mover_lambda_function_name()
+    role_name = role_name or globals.hot_cold_mover_iam_role_name()
 
     response = globals.aws_iam_client.get_role(RoleName=role_name)
     role_arn = response["Role"]["Arn"]
+    iot_device_ids = _iot_device_ids(globals.config_iot_devices)
 
     globals.aws_lambda_client.create_function(
       FunctionName=function_name,
       Runtime="python3.13",
       Role=role_arn,
       Handler="lambda_function.lambda_handler", #  file.function
-      Code={"ZipFile": util.compile_lambda_function(os.path.join(globals.core_lfs_path, "hot-to-cold-mover"))},
+      Code={
+        "ZipFile": util.compile_lambda_function(
+          os.path.join(globals.core_lfs_path, "hot-to-cold-mover"),
+          extra_files={
+            "iot_device_ids.json": json.dumps(
+              iot_device_ids,
+              ensure_ascii=False,
+              separators=(",", ":"),
+            )
+          },
+        )
+      },
       Description="",
       Timeout=3, # seconds
       MemorySize=128, # MB
       Publish=True,
-      Environment={
-        "Variables": {
-          "DIGITAL_TWIN_INFO": json.dumps(globals.digital_twin_info()),
-          "DYNAMODB_TABLE_NAME": globals.hot_dynamodb_table_name(),
-          "S3_BUCKET_NAME": globals.cold_s3_bucket_name()
-        }
-      }
+      Environment=util.lambda_environment({
+        "HOT_STORAGE_SIZE_IN_DAYS": str(globals.config["hot_storage_size_in_days"]),
+        "DYNAMODB_TABLE_NAME": globals.hot_dynamodb_table_name(),
+        "S3_BUCKET_NAME": globals.cold_s3_bucket_name()
+      })
     )
 
     self.log(f"Created Lambda function: {function_name}")
 
-  def destroy(self):
-    function_name = globals.hot_cold_mover_lambda_function_name()
+  def destroy(self, function_name=None):
+    function_name = function_name or globals.hot_cold_mover_lambda_function_name()
 
     try:
       globals.aws_lambda_client.delete_function(FunctionName=function_name)
@@ -58,3 +113,11 @@ class HotColdMoverLambdaFunctionDeployer(Deployer):
         self.log(f"❌ Hot to Cold Mover Lambda Function missing: {function_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l3_hot action: {action['action']}")

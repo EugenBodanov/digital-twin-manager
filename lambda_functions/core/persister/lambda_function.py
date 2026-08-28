@@ -3,8 +3,6 @@ import json
 import boto3
 from decimal import Decimal
 
-
-DIGITAL_TWIN_INFO = json.loads(os.environ.get("DIGITAL_TWIN_INFO", None))
 DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", None)
 EVENT_CHECKER_LAMBDA_NAME = os.environ.get("EVENT_CHECKER_LAMBDA_NAME", None)
 

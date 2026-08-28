@@ -1,7 +1,12 @@
-config_credentials.json
+config*.json
 iot_devices_auth/
+.digital-twin-manager-state/
+dependency/artifact/
 
 __pycache__/
 *.py[cod]
+.idea/
+**/zipped.zip
 
 src/venv/
+.env

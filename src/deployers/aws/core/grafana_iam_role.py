@@ -1,4 +1,8 @@
 from deployers.base import Deployer
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
+from deployers.aws.core.plan_actions import plan_action
+from dependency_graph import plan_graph_ids
+import deployment_state
 import json
 import time
 import globals
@@ -9,8 +13,38 @@ class GrafanaIamRoleDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
 
-  def deploy(self):
-    role_name = globals.grafana_iam_role_name()
+  def plan(self):
+    previous_role_name = deployment_state.last_applied_grafana_iam_role_name()
+    desired_role_name = globals.grafana_iam_role_name()
+
+    if previous_role_name == desired_role_name:
+      self.log(f"Grafana IAM Role {desired_role_name} is up to date.")
+      return [
+        plan_action(
+          desired_role_name,
+          "iam",
+          graph_id=plan_graph_ids.GRAFANA_IAM,
+        )
+      ]
+
+    self.log(f"Grafana IAM Role name changed from {previous_role_name} to {desired_role_name}.")
+    return [
+      plan_action(
+        previous_role_name,
+        "iam",
+        action="DESTROY",
+        graph_id=plan_graph_ids.GRAFANA_IAM,
+      ),
+      plan_action(
+        desired_role_name,
+        "iam",
+        action="DEPLOY",
+        graph_id=plan_graph_ids.GRAFANA_IAM,
+      ),
+    ]
+
+  def deploy(self, role_name=None):
+    role_name = role_name or globals.grafana_iam_role_name()
 
     response = globals.aws_iam_client.create_role(
         RoleName=role_name,
@@ -102,8 +136,8 @@ class GrafanaIamRoleDeployer(Deployer):
     self.log(f"Waiting for propagation...")
     time.sleep(20)
 
-  def destroy(self):
-    role_name = globals.grafana_iam_role_name()
+  def destroy(self, role_name=None):
+    role_name = role_name or globals.grafana_iam_role_name()
 
     try:
       response = globals.aws_iam_client.list_attached_role_policies(RoleName=role_name)
@@ -138,3 +172,11 @@ class GrafanaIamRoleDeployer(Deployer):
         self.log(f"❌ Grafana IAM Role missing: {role_name}")
       else:
         raise
+
+  def apply(self, action, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(resource)
+    else:
+      raise ValueError(f"Unsupported core_l5 action: {action['action']}")

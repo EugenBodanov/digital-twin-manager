@@ -4,13 +4,13 @@ import json
 import datetime
 
 
-DIGITAL_TWIN_INFO = json.loads(os.environ.get("DIGITAL_TWIN_INFO", None))
+COLD_STORAGE_SIZE_IN_DAYS = int(os.environ["COLD_STORAGE_SIZE_IN_DAYS"])
 SOURCE_S3_BUCKET_NAME = os.environ.get("SOURCE_S3_BUCKET_NAME", None)
 TARGET_S3_BUCKET_NAME = os.environ.get("TARGET_S3_BUCKET_NAME", None)
 
 s3_client = boto3.client("s3")
 
-cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=DIGITAL_TWIN_INFO["config"]["cold_storage_size_in_days"])
+cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=COLD_STORAGE_SIZE_IN_DAYS)
 cutoff_iso = cutoff.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
 
 

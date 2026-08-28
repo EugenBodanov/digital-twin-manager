@@ -1,4 +1,8 @@
+import deployment_state
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
+from deployers.aws.core.plan_actions import plan_action
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import globals
 from botocore.exceptions import ClientError
@@ -9,8 +13,75 @@ class ProcessorIamRoleDeployer(Deployer):
   def log(self, message):
     print(f"IoT: {message}")
 
-  def deploy(self, iot_device):
-    role_name = globals.processor_iam_role_name(iot_device)
+  def plan(self, previous_iot_device, desired_iot_device):
+    previous_role_name = (
+      deployment_state.last_applied_processor_iam_role_name(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_role_name = (
+      globals.processor_iam_role_name(desired_iot_device)
+      if desired_iot_device else None
+    )
+    previous_graph_id = (
+      plan_graph_ids.processor_iam(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_graph_id = (
+      plan_graph_ids.processor_iam(desired_iot_device)
+      if desired_iot_device else None
+    )
+
+    if previous_iot_device is None:
+      self.log(f"IAM role {desired_role_name} is new.")
+      return [
+        plan_action(
+          desired_role_name,
+          "iam",
+          action="DEPLOY",
+          graph_id=desired_graph_id,
+        ),
+      ]
+
+    if desired_iot_device is None:
+      self.log(f"IAM role {previous_role_name} was removed from config.")
+      return [
+        plan_action(
+          previous_role_name,
+          "iam",
+          action="DESTROY",
+          graph_id=previous_graph_id,
+        ),
+      ]
+
+    if previous_role_name == desired_role_name:
+      self.log(f"IAM role {desired_role_name} is up to date.")
+      return [
+        plan_action(
+          desired_role_name,
+          "iam",
+          graph_id=desired_graph_id,
+        ),
+      ]
+
+    self.log(f"IAM role name has changed from {previous_role_name} to {desired_role_name}")
+
+    return [
+      plan_action(
+        previous_role_name,
+        "iam",
+        action="DESTROY",
+        graph_id=previous_graph_id,
+      ),
+      plan_action(
+        desired_role_name,
+        "iam",
+        action="DEPLOY",
+        graph_id=desired_graph_id,
+      ),
+    ]
+
+  def deploy(self, iot_device, role_name=None):
+    role_name = role_name or globals.processor_iam_role_name(iot_device)
 
     globals.aws_iam_client.create_role(
         RoleName=role_name,
@@ -49,8 +120,8 @@ class ProcessorIamRoleDeployer(Deployer):
 
     time.sleep(10)
 
-  def destroy(self, iot_device):
-    role_name = globals.processor_iam_role_name(iot_device)
+  def destroy(self, iot_device, role_name=None):
+    role_name = role_name or globals.processor_iam_role_name(iot_device)
 
     try:
       response = globals.aws_iam_client.list_attached_role_policies(RoleName=role_name)
@@ -85,3 +156,11 @@ class ProcessorIamRoleDeployer(Deployer):
         self.log(f"❌ Processor {role_name} IAM Role missing: {role_name}")
       else:
         raise
+
+  def apply(self, action, iot_device, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(iot_device, role_name=resource)
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(iot_device, role_name=resource)
+    else:
+      raise ValueError(f"Unsupported iot_l2 action: {action['action']}")

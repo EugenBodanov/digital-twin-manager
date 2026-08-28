@@ -4,7 +4,7 @@ from decimal import Decimal
 import boto3
 from boto3.dynamodb.conditions import Key
 
-DIGITAL_TWIN_INFO = json.loads(os.environ.get("DIGITAL_TWIN_INFO", None))
+DIGITAL_TWIN_NAME = os.environ["DIGITAL_TWIN_NAME"]
 DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", None)
 
 SCAN_LIMIT = 500
@@ -48,7 +48,7 @@ def lambda_handler(event, context):
     component_info = components.get(event["componentName"])
     component_type_id = component_info.get("componentTypeId")
 
-    iot_device_id = component_type_id.removeprefix(DIGITAL_TWIN_INFO["config"]["digital_twin_name"] + "-")
+    iot_device_id = component_type_id.removeprefix(DIGITAL_TWIN_NAME + "-")
 
     start_time = event.get("startTime")
     end_time = event.get("endTime")

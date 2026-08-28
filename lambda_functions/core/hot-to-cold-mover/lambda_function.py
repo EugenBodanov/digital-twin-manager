@@ -5,7 +5,10 @@ import datetime
 from boto3.dynamodb.conditions import Key
 
 
-DIGITAL_TWIN_INFO = json.loads(os.environ.get("DIGITAL_TWIN_INFO", None))
+with open(os.path.join(os.path.dirname(__file__), "iot_device_ids.json"), encoding="utf-8") as config_file:
+    IOT_DEVICE_IDS = json.load(config_file)
+
+HOT_STORAGE_SIZE_IN_DAYS = int(os.environ["HOT_STORAGE_SIZE_IN_DAYS"])
 DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", None)
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", None)
 
@@ -13,7 +16,7 @@ dynamodb_client = boto3.resource("dynamodb")
 dynamodb_table = dynamodb_client.Table(DYNAMODB_TABLE_NAME)
 s3_client = boto3.client("s3")
 
-cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=DIGITAL_TWIN_INFO["config"]["hot_storage_size_in_days"])
+cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=HOT_STORAGE_SIZE_IN_DAYS)
 cutoff_iso = cutoff.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
 chunk_count = 0
 
@@ -41,11 +44,11 @@ def lambda_handler(event, context):
     print("Event: " + json.dumps(event))
 
     with dynamodb_table.batch_writer() as batch:
-        for iot_device in DIGITAL_TWIN_INFO["config_iot_devices"]:
+        for iot_device_id in IOT_DEVICE_IDS:
             chunk_index = 0
 
             response = dynamodb_table.query(
-                KeyConditionExpression=Key("iotDeviceId").eq(iot_device["id"]) &
+                KeyConditionExpression=Key("iotDeviceId").eq(iot_device_id) &
                                        Key("id").lt(cutoff_iso),
                 ScanIndexForward=False, # descending order by id (time)
                 Limit=1
@@ -58,7 +61,7 @@ def lambda_handler(event, context):
             end = items[0]["id"]
 
             response = dynamodb_table.query(
-                KeyConditionExpression=Key("iotDeviceId").eq(iot_device["id"]) &
+                KeyConditionExpression=Key("iotDeviceId").eq(iot_device_id) &
                                        Key("id").lt(cutoff_iso),
                 ScanIndexForward=True # ascending order by id (time)
             )
@@ -70,7 +73,7 @@ def lambda_handler(event, context):
             start = items[0]["id"]
 
             while len(items) > 0:
-                flush_chunk_to_s3(iot_device["id"], items, start, end, chunk_index)
+                flush_chunk_to_s3(iot_device_id, items, start, end, chunk_index)
                 chunk_index += 1
 
                 item_count = len(items)
@@ -89,7 +92,7 @@ def lambda_handler(event, context):
                     break
 
                 response = dynamodb_table.query(
-                    KeyConditionExpression=Key("iotDeviceId").eq(iot_device["id"]) &
+                    KeyConditionExpression=Key("iotDeviceId").eq(iot_device_id) &
                                            Key("id").lt(cutoff_iso),
                     ExclusiveStartKey=response["LastEvaluatedKey"]
                 )

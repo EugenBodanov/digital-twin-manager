@@ -1,19 +1,74 @@
 from deployers.aws.iot.iot_thing import IotThingDeployer
+from deployers.aws.iot.device_reconciliation import (
+  desired_iot_devices,
+  previous_iot_devices,
+  reconciled_iot_devices,
+)
+from deployers.aws.apply_actions import pending_actions
 from deployers.base import Deployer
+import deployment_state
 import globals
 
 class L1Deployer(Deployer):
   def log(self, message):
     print(f"IoT: {message}")
 
+  def plan(self):
+    actions = []
+    for previous_iot_device, desired_iot_device in reconciled_iot_devices():
+      actions.extend(IotThingDeployer().plan(previous_iot_device, desired_iot_device))
+    return {
+      "layer": "iot_l1",
+      "actions": actions
+    }
+
+  def _iot_device_for_action(self, action):
+    resource = action["resource"]
+
+    if action["action"] == "DESTROY":
+      for iot_device in previous_iot_devices():
+        if deployment_state.last_applied_iot_thing_name(iot_device) == resource:
+          return iot_device
+
+    if action["action"] == "DEPLOY":
+      for iot_device in desired_iot_devices():
+        if globals.iot_thing_name(iot_device) == resource:
+          return iot_device
+
+    return None
+
+  def apply(self, layer_plan, action_name):
+    layer_name = layer_plan["layer"]
+    actions = pending_actions(layer_plan["actions"], action_name)
+
+    if not actions:
+      return
+
+    for action in actions:
+      resource_type = action["resource_type"]
+      resource = action["resource"]
+
+      if resource_type != "iot_thing":
+        raise ValueError(
+          f"No iot_l1 apply handler for {resource_type}/{resource}"
+        )
+
+      iot_device = self._iot_device_for_action(action)
+
+      if iot_device is None:
+        raise ValueError(f"No IoT device config found for planned IoT thing: {resource}")
+
+      IotThingDeployer().apply(action, iot_device, resource)
+      deployment_state.mark_plan_action_processed("iot", layer_name, action)
+
   def deploy(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       IotThingDeployer().deploy(iot_device)
 
   def destroy(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       IotThingDeployer().destroy(iot_device)
 
   def info(self):
-    for iot_device in globals.config_iot_devices:
+    for iot_device in desired_iot_devices():
       IotThingDeployer().info(iot_device)

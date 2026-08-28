@@ -1,18 +1,100 @@
+from deployers.aws.core.plan_actions import plan_action
+from deployers.aws.apply_actions import ACTION_DESTROY, ACTION_DEPLOY
 from deployers.base import Deployer
+from dependency_graph import plan_graph_ids
 import json
 import globals
 import os
 from botocore.exceptions import ClientError
 import shutil
 import util
+import deployment_state
 
 class IotThingDeployer(Deployer):
   def log(self, message):
     print(f"IoT: {message}")
 
-  def deploy(self, iot_device):
-    thing_name = globals.iot_thing_name(iot_device)
-    policy_name = globals.iot_thing_policy_name(iot_device)
+  def plan(self, previous_iot_device, desired_iot_device):
+    previous_thing_name = (
+      deployment_state.last_applied_iot_thing_name(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_thing_name = (
+      globals.iot_thing_name(desired_iot_device)
+      if desired_iot_device else None
+    )
+    previous_policy_name = (
+      deployment_state.last_applied_iot_thing_policy_name(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_policy_name = (
+      globals.iot_thing_policy_name(desired_iot_device)
+      if desired_iot_device else None
+    )
+    previous_graph_id = (
+      plan_graph_ids.iot_thing(previous_iot_device)
+      if previous_iot_device else None
+    )
+    desired_graph_id = (
+      plan_graph_ids.iot_thing(desired_iot_device)
+      if desired_iot_device else None
+    )
+
+    if previous_iot_device is None:
+      self.log(f"IoT Thing {desired_thing_name} is new.")
+      return [
+        plan_action(
+          desired_thing_name,
+          "iot_thing",
+          action="DEPLOY",
+          graph_id=desired_graph_id,
+        ),
+      ]
+
+    if desired_iot_device is None:
+      self.log(f"IoT Thing {previous_thing_name} was removed from config.")
+      return [
+        plan_action(
+          previous_thing_name,
+          "iot_thing",
+          action="DESTROY",
+          graph_id=previous_graph_id,
+        ),
+      ]
+
+    if previous_thing_name == desired_thing_name and previous_policy_name == desired_policy_name:
+      self.log(f"IoT Thing {desired_thing_name} is up to date.")
+      return [
+        plan_action(
+          desired_thing_name,
+          "iot_thing",
+          graph_id=desired_graph_id,
+        ),
+      ]
+
+    if previous_thing_name != desired_thing_name:
+      self.log(f"IoT Thing name has changed from {previous_thing_name} to {desired_thing_name}")
+    if previous_policy_name != desired_policy_name:
+      self.log(f"IoT Thing Policy name has changed from {previous_policy_name} to {desired_policy_name}")
+
+    return [
+      plan_action(
+        previous_thing_name,
+        "iot_thing",
+        action="DESTROY",
+        graph_id=previous_graph_id,
+      ),
+      plan_action(
+        desired_thing_name,
+        "iot_thing",
+        action="DEPLOY",
+        graph_id=desired_graph_id,
+      ),
+    ]
+
+  def deploy(self, iot_device, thing_name=None, policy_name=None):
+    thing_name = thing_name or globals.iot_thing_name(iot_device)
+    policy_name = policy_name or globals.iot_thing_policy_name(iot_device)
 
     globals.aws_iot_client.create_thing(thingName=thing_name)
     self.log(f"Created IoT Thing: {thing_name}")
@@ -51,9 +133,9 @@ class IotThingDeployer(Deployer):
     globals.aws_iot_client.attach_policy(policyName=policy_name, target=certificate_arn)
     self.log(f"Attached IoT Policy to Certificate")
 
-  def destroy(self, iot_device):
-    thing_name = globals.iot_thing_name(iot_device)
-    policy_name = globals.iot_thing_policy_name(iot_device)
+  def destroy(self, iot_device, thing_name=None, policy_name=None):
+    thing_name = thing_name or globals.iot_thing_name(iot_device)
+    policy_name = policy_name or globals.iot_thing_policy_name(iot_device)
 
     try:
       principals_resp = globals.aws_iot_client.list_thing_principals(thingName=thing_name)
@@ -124,3 +206,19 @@ class IotThingDeployer(Deployer):
         self.log(f"❌ IoT Thing {thing_name} missing: {thing_name}")
       else:
         raise
+
+  def apply(self, action, iot_device, resource):
+    if action["action"] == ACTION_DESTROY:
+      self.destroy(
+        iot_device,
+        thing_name=resource,
+        policy_name=deployment_state.last_applied_iot_thing_policy_name(iot_device),
+      )
+    elif action["action"] == ACTION_DEPLOY:
+      self.deploy(
+        iot_device,
+        thing_name=resource,
+        policy_name=globals.iot_thing_policy_name(iot_device),
+      )
+    else:
+      raise ValueError(f"Unsupported iot_l1 action: {action['action']}")

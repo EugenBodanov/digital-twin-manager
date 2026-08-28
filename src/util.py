@@ -4,6 +4,30 @@ import urllib
 import globals
 from botocore.exceptions import ClientError
 
+LAMBDA_ENVIRONMENT_VARIABLES_MAX_BYTES = 4096
+
+
+def lambda_environment(variables):
+  normalized_variables = dict(variables)
+
+  for name, value in normalized_variables.items():
+    if not isinstance(name, str) or not isinstance(value, str):
+      raise TypeError("Lambda environment variable names and values must be strings.")
+
+  measured_size = sum(
+    len(name.encode("utf-8")) + len(value.encode("utf-8"))
+    for name, value in normalized_variables.items()
+  )
+
+  if measured_size > LAMBDA_ENVIRONMENT_VARIABLES_MAX_BYTES:
+    raise ValueError(
+      "Lambda environment variables exceed the 4 KB AWS limit. "
+      f"Measured size: {measured_size} bytes."
+    )
+
+  return {"Variables": normalized_variables}
+
+
 def resolve_folder_path(folder_path):
   rel_path = os.path.join(globals.project_path(), folder_path)
 
@@ -19,19 +43,21 @@ def resolve_folder_path(folder_path):
     f"Folder '{folder_path}' does not exist as relative or absolute path."
   )
 
-def compile_lambda_function(folder_path):
-  zip_path = zip_directory(folder_path)
+def compile_lambda_function(folder_path, extra_files=None):
+  zip_path = zip_directory(folder_path, extra_files=extra_files)
 
   with open(zip_path, "rb") as f:
     zip_code = f.read()
 
   return zip_code
 
-def zip_directory(folder_path, zip_name='zipped.zip'):
+def zip_directory(folder_path, zip_name='zipped.zip', extra_files=None):
   folder_path = resolve_folder_path(folder_path)
   output_path = os.path.join(folder_path, zip_name)
 
   with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+    archived_names = set()
+
     for root, dirs, files in os.walk(folder_path):
       for file in files:
         full_path = os.path.join(root, file)
@@ -39,6 +65,22 @@ def zip_directory(folder_path, zip_name='zipped.zip'):
           continue
         arcname = os.path.relpath(full_path, start=folder_path)
         zf.write(full_path, arcname)
+        archived_names.add(arcname)
+
+    for arcname, contents in (extra_files or {}).items():
+      normalized_arcname = os.path.normpath(arcname)
+
+      if (
+        os.path.isabs(arcname)
+        or normalized_arcname == ".."
+        or normalized_arcname.startswith(f"..{os.sep}")
+      ):
+        raise ValueError(f"Lambda archive path must stay inside the archive: {arcname}")
+
+      if normalized_arcname in archived_names:
+        raise ValueError(f"Lambda archive already contains: {normalized_arcname}")
+
+      zf.writestr(normalized_arcname, contents)
 
   return output_path
 
