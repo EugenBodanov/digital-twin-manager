@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import globals
 import resource_names
+import util
 
 
 STATE_VERSION = 1
@@ -13,6 +14,7 @@ STATE_DIR_ENV = "DIGITAL_TWIN_MANAGER_STATE_DIR"
 STATE_CONFIG_DIR_NAME = "configs"
 STATE_METADATA_FILE_NAME = "metadata.json"
 STATE_PLAN_FILE_NAME = "plan.json"
+STATE_CODE_HASHES_FILE_NAME = "code_hashes.json"
 
 STATE_CONFIG_FILE_NAMES = [
   "config.json",
@@ -26,6 +28,9 @@ last_applied_config_iot_devices = []
 last_applied_config_events = []
 last_applied_config_hierarchy = {}
 last_applied_state_metadata = {}
+# Event action id -> hash of its Lambda code at the last apply. Empty for states
+# written before code hashes existed; such actions count as unchanged.
+last_applied_code_hashes = {}
 
 
 def state_dir_path():
@@ -41,6 +46,20 @@ def state_config_dir_path():
 
 def state_metadata_file_path():
   return os.path.join(state_dir_path(), STATE_METADATA_FILE_NAME)
+
+
+def state_code_hashes_file_path():
+  return os.path.join(state_dir_path(), STATE_CODE_HASHES_FILE_NAME)
+
+
+def current_code_hashes():
+  """Hash of the Lambda code of every local event action in the current config."""
+  hashes = {}
+  for event in getattr(globals, "config_events", []):
+    action = event.get("action") or {}
+    if action.get("type") == "lambda" and not action.get("external") and action.get("pathToCode"):
+      hashes[resource_names.event_action_id(event)] = util.code_hash(action["pathToCode"])
+  return hashes
 
 
 def state_plan_file_path():
@@ -270,6 +289,12 @@ def initialize_last_applied_config_state():
     state_config_file_path("config_iot_devices.json")
   )
   last_applied_config_events = _read_json(state_config_file_path("config_events.json"))
+  global last_applied_code_hashes
+  last_applied_code_hashes = (
+    _read_json(state_code_hashes_file_path())
+    if os.path.exists(state_code_hashes_file_path())
+    else {}
+  )
   last_applied_config_hierarchy = _read_json(
     state_config_file_path("config_hierarchy.json")
   )
@@ -284,6 +309,7 @@ def save_last_applied_config_state():
     copied_paths.append(_copy_config_file(file_name))
 
   _write_json(state_metadata_file_path(), _build_metadata())
+  _write_json(state_code_hashes_file_path(), current_code_hashes())
   initialize_last_applied_config_state()
   return copied_paths
 

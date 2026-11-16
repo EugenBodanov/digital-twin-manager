@@ -100,7 +100,7 @@ class LambdaActionsDeployer(Deployer):
       Handler="lambda_function.lambda_handler", #  file.function
       Code={"ZipFile": util.compile_lambda_function(path_to_code_folder)},
       Description="",
-      Timeout=3, # seconds
+      Timeout=3,
       MemorySize=128, # MB
       Publish=True,
     )
@@ -208,6 +208,16 @@ class LambdaActionsDeployer(Deployer):
     self._destroy_lambda_function(lambda_function_name)
     self._destroy_iam_role(iam_role_name)
 
+  def _code_changed(self, action_id: str, event: dict) -> bool:
+    previous_hash = deployment_state.last_applied_code_hashes.get(action_id)
+    action = event["action"]
+    if previous_hash is None or action["type"] != "lambda" or action.get("external") or not action.get("pathToCode"):
+      return False
+    changed = util.code_hash(action["pathToCode"]) != previous_hash
+    if changed:
+      self.log(f"Event Action {action_id}: code under {action['pathToCode']} has changed.")
+    return changed
+
   def plan(self):
     previous_actions = deployment_state.last_applied_config_events
     desired_actions = globals.config_events
@@ -245,7 +255,7 @@ class LambdaActionsDeployer(Deployer):
         )
         continue
 
-      if not content_changed(previous_action, desired_action):
+      if not content_changed(previous_action, desired_action) and not self._code_changed(action_id, desired_action):
         self.log(f"Event Action {action_id} is up to date.")
         actions.append(
           plan_action(

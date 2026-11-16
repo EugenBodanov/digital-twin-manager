@@ -1,3 +1,4 @@
+import hashlib
 import os
 import zipfile
 import urllib
@@ -42,6 +43,25 @@ def resolve_folder_path(folder_path):
   raise FileNotFoundError(
     f"Folder '{folder_path}' does not exist as relative or absolute path."
   )
+
+def code_hash(folder_path):
+  """SHA-256 over every file of a Lambda code folder (relative path and content)."""
+  folder_path = resolve_folder_path(folder_path)
+  digest = hashlib.sha256()
+
+  for root, dirs, files in os.walk(folder_path):
+    dirs.sort()
+    for file in sorted(files):
+      if file == "zipped.zip":
+        continue
+      full_path = os.path.join(root, file)
+      digest.update(os.path.relpath(full_path, folder_path).replace(os.sep, "/").encode("utf-8"))
+      digest.update(b"\0")
+      with open(full_path, "rb") as f:
+        digest.update(f.read())
+      digest.update(b"\0")
+
+  return digest.hexdigest()
 
 def compile_lambda_function(folder_path, extra_files=None):
   zip_path = zip_directory(folder_path, extra_files=extra_files)
