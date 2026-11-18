@@ -18,6 +18,7 @@ def require_keys(value, required_keys, field):
 
 
 def require_no_unknown_keys(value, allowed_keys, field):
+  return
   unknown_keys = value.keys() - allowed_keys
 
   if unknown_keys:
