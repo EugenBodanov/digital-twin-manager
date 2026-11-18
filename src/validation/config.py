@@ -26,7 +26,7 @@ DIGITAL_TWIN_NAME_MAX_LENGTH = 10
 def validate(config):
   require_dict(config, CONFIG_NAME)
   require_keys(config, REQUIRED_KEYS, CONFIG_NAME)
-  require_no_unknown_keys(config, REQUIRED_KEYS | OPTIONAL_KEYS, CONFIG_NAME)
+  #require_no_unknown_keys(config, REQUIRED_KEYS | OPTIONAL_KEYS, CONFIG_NAME)
 
   _validate_digital_twin_name(config["digital_twin_name"])
   _validate_storage_size_in_days(
