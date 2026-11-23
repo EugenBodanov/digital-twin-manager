@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -168,6 +171,31 @@ class RuntimeConfigurationTests(unittest.TestCase):
             value,
             json.loads(snapshot_path.read_text(encoding="utf-8")),
           )
+
+
+@pytest.mark.parametrize("commands", [["init-state"], []], ids=["one-shot", "interactive"])
+def test_cli_bootstraps_state_with_relative_paths(commands, tmp_path, monkeypatch):
+  configs = REPO_ROOT / "configs" / "validation" / "valid"
+  events = json.loads((configs / "config_events.json").read_text(encoding="utf-8"))
+  events[0]["action"].update(external=False, pathToCode="source/not-mounted")
+  (tmp_path / "events.json").write_text(json.dumps(events), encoding="utf-8")
+
+  monkeypatch.setenv(globals.CONFIG_DIR_ENV, str(configs))
+  monkeypatch.setenv("AWS_ACCESS_KEY_ID", "A" * 20)
+  monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "B" * 40)
+  monkeypatch.setenv("AWS_REGION", "eu-west-1")
+  monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+  result = subprocess.run(
+    [sys.executable, str(REPO_ROOT / "src" / "main.py"), *commands,
+     "--events", "events.json", "--state", "state", "--output", "output", "--pems", "certs"],
+    cwd=tmp_path, input="init-state\nexit\n", capture_output=True, text=True, timeout=30,
+  )
+
+  assert result.returncode == 0, result.stderr
+  snapshot = tmp_path / "state" / "configs" / "config_events.json"
+  assert json.loads(snapshot.read_text(encoding="utf-8")) == events
+  assert (tmp_path / "certs").is_dir()
+  assert (tmp_path / "output").is_dir()
 
 
 if __name__ == "__main__":

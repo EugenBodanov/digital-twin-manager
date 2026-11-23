@@ -78,16 +78,6 @@ class LambdaActionsDeployer(Deployer):
         raise
 
 
-  def _create_lambda_function(self, function_name, path_to_code_folder=None, local_function_name=None, zip_code=None):
-    definition = LambdaDefinition(
-      function_name=function_name,
-      role_name=function_name,
-      code_path=path_to_code_folder or os.path.join(globals.event_action_lfs_path, local_function_name),
-      graph_id="",
-    )
-    create_lambda(definition, zip_code=zip_code)
-    self.log(f"Created Lambda function: {function_name}")
-
   def _destroy_lambda_function(self, function_name):
     try:
       globals.aws_lambda_client.delete_function(FunctionName=function_name)
@@ -152,37 +142,22 @@ class LambdaActionsDeployer(Deployer):
     )
     return resource_name, resource_name
 
-  def _deploy_event_action(self, event: dict, digital_twin_name: str, zip_code=None, reuse_role=False):
-    event_action = event["action"]
-
-    if event_action["type"] != "lambda" or event_action.get("external"):
-      return
-
-    iam_role_name, lambda_function_name = self._event_action_resource_names(
-      event,
-      digital_twin_name,
-    )
-    local_function_name = event_action["functionName"]
-
+  def _deploy_event_action(self, definition: LambdaDefinition, zip_code=None, reuse_role=False):
     if reuse_role:
       try:
-        globals.aws_iam_client.get_role(RoleName=iam_role_name)
+        globals.aws_iam_client.get_role(RoleName=definition.role_name)
       except ClientError as error:
         if error.response["Error"]["Code"] != "NoSuchEntity":
           raise
-        self._create_iam_role(iam_role_name)
+        self._create_iam_role(definition.role_name)
     else:
-      self._create_iam_role(iam_role_name)
+      self._create_iam_role(definition.role_name)
 
     self.log(f"Waiting for propagation...")
     time.sleep(20)
 
-    self._create_lambda_function(
-      lambda_function_name,
-      event_action.get("pathToCode"),
-      local_function_name,
-      zip_code=zip_code,
-    )
+    create_lambda(definition, zip_code=zip_code)
+    self.log(f"Created Lambda function: {definition.function_name}")
 
   def _destroy_event_action(self, event: dict, digital_twin_name: str):
     event_action = event["action"]
@@ -205,10 +180,15 @@ class LambdaActionsDeployer(Deployer):
     role_name, function_name = self._event_action_resource_names(
       event, digital_twin_name or resource_names.digital_twin_name(globals.config),
     )
+    code_path = event_action.get("pathToCode")
+    if code_path:
+      code_path = globals.event_action_code_paths.get(code_path, code_path)
+    else:
+      code_path = os.path.join(globals.event_action_lfs_path, event_action["functionName"])
     return LambdaDefinition(
       function_name=function_name,
       role_name=role_name,
-      code_path=event_action.get("pathToCode") or os.path.join(globals.event_action_lfs_path, event_action["functionName"]),
+      code_path=code_path,
       graph_id=plan_graph_ids.event_action(self._root_event_id(event)),
     )
 
@@ -278,7 +258,9 @@ class LambdaActionsDeployer(Deployer):
 
   def deploy(self):
     for event in globals.config_events:
-      self._deploy_event_action(event, resource_names.digital_twin_name(globals.config))
+      definition = self._lambda_definition(event)
+      if definition is not None:
+        self._deploy_event_action(definition)
 
   def destroy(self):
     for event in globals.config_events:
@@ -306,9 +288,7 @@ class LambdaActionsDeployer(Deployer):
           if previous_event is not None else None
         )
         reuse_role = previous_definition is not None and previous_definition.function_name == definition.function_name
-        self._deploy_event_action(
-          event, resource_names.digital_twin_name(globals.config), zip_code=code, reuse_role=reuse_role,
-        )
+        self._deploy_event_action(definition, zip_code=code, reuse_role=reuse_role)
     else:
       raise ValueError(f"Unsupported event_actions action: {action['action']}")
 

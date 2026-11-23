@@ -26,6 +26,7 @@ last_applied_config_iot_devices = []
 last_applied_config_events = []
 last_applied_config_hierarchy = {}
 last_applied_state_metadata = {}
+plan_file_override = None
 
 
 def state_dir_path():
@@ -44,7 +45,7 @@ def state_metadata_file_path():
 
 
 def state_plan_file_path():
-  return os.path.join(state_dir_path(), STATE_PLAN_FILE_NAME)
+  return plan_file_override or os.path.join(state_dir_path(), STATE_PLAN_FILE_NAME)
 
 
 def state_config_file_path(file_name):
@@ -293,9 +294,10 @@ def save_last_applied_config_state():
 
 
 def save_plan(plan):
-  os.makedirs(state_dir_path(), exist_ok=True)
-  _write_json(state_plan_file_path(), plan)
-  return state_plan_file_path()
+  plan_path = state_plan_file_path()
+  os.makedirs(os.path.dirname(os.path.abspath(plan_path)), exist_ok=True)
+  _write_json(plan_path, plan)
+  return plan_path
 
 def _validate_plan(plan):
   for group_entry in plan:

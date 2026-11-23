@@ -36,12 +36,12 @@ def lambda_environment(variables):
 def resolve_folder_path(folder_path):
   rel_path = os.path.join(globals.project_path(), folder_path)
 
-  if os.path.exists(rel_path):
+  if os.path.isdir(rel_path):
     return rel_path
 
   abs_path = os.path.abspath(folder_path)
 
-  if os.path.exists(abs_path):
+  if os.path.isdir(abs_path):
     return abs_path
 
   raise FileNotFoundError(

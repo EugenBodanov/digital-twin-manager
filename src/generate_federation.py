@@ -1,8 +1,10 @@
 import json
+from pathlib import Path
+
 import globals
 
 
-def generate_federation_input():
+def generate_federation_input(output_dir=None):
     region = globals.config_credentials["aws_region"]
     ssm_prefix = globals.ssm_registry_prefix()
     workspace_id = globals.twinmaker_workspace_name()
@@ -28,7 +30,8 @@ def generate_federation_input():
         "twinmaker_workspace_id": workspace_id
     }
 
-    with open(f"{globals.config['digital_twin_name']}_federation_input.json", "w") as f:
+    output_path = Path(output_dir or ".") / f"{globals.config['digital_twin_name']}_federation_input.json"
+    with output_path.open("w") as f:
         json.dump(output, f, indent=2)
 
-    print(f"Generated {globals.config['digital_twin_name']}_federation_input.json")
+    print(f"Generated {output_path}")

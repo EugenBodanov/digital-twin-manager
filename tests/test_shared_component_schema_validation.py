@@ -19,6 +19,7 @@ install_aws_stubs()
 
 import deployment_state
 import globals
+import main
 from deployers.aws.all import AllDeployer
 from deployers.aws.core.plan_actions import plan_action
 from deployers.aws.iot.all import AllDeployer as IotAllDeployer
@@ -183,6 +184,14 @@ class SharedComponentSchemaValidationTests(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "shared-sensor"):
       AllDeployer().deploy()
 
+    self.assertEqual([], self.aws_guard.accesses)
+    self.assertEqual([], self.twinmaker.mutations)
+
+  def test_cli_deploy_and_plan_check_shared_schemas_before_accessing_aws(self):
+    with patch.object(main, "_try_initialize_last_applied_config_state", return_value=True):
+      for command in ("deploy", "plan"):
+        with self.subTest(command=command), self.assertRaisesRegex(ValueError, "shared-sensor"):
+          main.run_command(command)
     self.assertEqual([], self.aws_guard.accesses)
     self.assertEqual([], self.twinmaker.mutations)
 

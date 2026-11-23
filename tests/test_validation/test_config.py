@@ -8,6 +8,12 @@ class ConfigValidationTests(unittest.TestCase):
   def test_valid_config_passes(self) -> None:
     config.validate(valid_config())
 
+  def test_unknown_config_key_fails(self) -> None:
+    value = valid_config()
+    value["unexpected"] = True
+    with self.assertRaisesRegex(ValueError, r"unknown key\(s\): unexpected"):
+      config.validate(value)
+
   def test_missing_required_key_fails(self) -> None:
     value = valid_config()
     del value["digital_twin_name"]

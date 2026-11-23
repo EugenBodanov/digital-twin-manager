@@ -14,6 +14,8 @@ deploy_managed_grafana = os.getenv("DEPLOY_MANAGED_GRAFANA", "false").lower() ==
 debug = os.getenv("DEBUG", "false").strip().lower() == "true"
 
 iot_data_path = "iot_devices_auth"
+config_file_paths = {}
+event_action_code_paths = {}
 core_lfs_path = "lambda_functions/core"
 processor_lfs_path = "lambda_functions/processors"
 event_action_lfs_path = "lambda_functions/event_actions"
@@ -46,7 +48,7 @@ def config_dir_path():
 
 
 def config_path(file_name):
-    return os.path.join(config_dir_path(), file_name)
+    return config_file_paths.get(file_name) or os.path.join(config_dir_path(), file_name)
 
 
 def initialize_config():
