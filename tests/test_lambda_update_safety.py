@@ -10,6 +10,7 @@ from botocore.exceptions import ClientError
 from deployers.aws.all import AllDeployer
 from deployers.aws.core.hot_cold_mover_lambda_function import HotColdMoverLambdaFunctionDeployer
 from deployers.aws.event_actions.lambda_actions import LambdaActionsDeployer
+from deployers.aws.lambda_function import wait_for_update
 
 
 class LambdaUpdateSafetyTests(ManagedLambdaFixture):
@@ -94,25 +95,41 @@ class LambdaUpdateSafetyTests(ManagedLambdaFixture):
     actions[0]["resource"] = "dt-a-different-function"
     self.assert_rejected_before_any_group(self.plan_for_group("core", "core_l3_hot", actions))
 
-  def test_configuration_update_revision_cannot_adopt_a_concurrent_writer(self):
+  def test_configuration_update_checks_the_completed_state_before_publishing(self):
     deployer, name = self.deploy_core(HotColdMoverLambdaFunctionDeployer)
-    globals.config["hot_storage_size_in_days"] = 31
+    for change in (
+      {"Layers": [{"Arn": "a-new-layer"}]},
+      {"Timeout": 60},
+      {"CodeSha256": "other-code"},
+      {"RevisionId": None},
+    ):
+      with self.subTest(change=change):
+        globals.config["hot_storage_size_in_days"] += 1
+        action = self.single_action(deployer.plan(), "UPDATE")
+
+        def read_after_change(function_name):
+          return {**wait_for_update(function_name), "RevisionId": "concurrent-writer", **change}
+
+        with (
+          patch("deployers.aws.lambda_function.wait_for_update", side_effect=read_after_change),
+          self.assertRaisesRegex(RuntimeError, "changed during its configuration update"),
+        ):
+          deployer.apply(action, name)
+    self.assertEqual([], self.lambda_client.code_updates)
+
+  def test_revision_change_after_completed_configuration_response_rejects_code_update(self):
+    deployer, name = self.deploy_core(HotColdMoverLambdaFunctionDeployer)
+    globals.config["hot_storage_size_in_days"] += 1
     action = self.single_action(deployer.plan(), "UPDATE")
-    original_waiter = self.lambda_client.get_waiter
+    update = self.lambda_client.update_function_configuration
 
-    def waiter_with_concurrent_writer(waiter_name):
-      waiter = original_waiter(waiter_name)
-      original_wait = waiter.wait
+    def complete_then_change(**request):
+      update(**request)
+      completed = wait_for_update(name)
+      self.lambda_client.functions[name]["RevisionId"] = "concurrent-writer"
+      return completed
 
-      def finish_then_change(**request):
-        original_wait(**request)
-        self.lambda_client.functions[name]["RevisionId"] = "concurrent-writer"
-        self.lambda_client.functions[name]["Layers"] = [{"Arn": "a-new-layer"}]
-
-      waiter.wait = finish_then_change
-      return waiter
-
-    with patch.object(self.lambda_client, "get_waiter", side_effect=waiter_with_concurrent_writer):
-      with self.assertRaises((ValueError, RuntimeError, ClientError)):
+    with patch.object(self.lambda_client, "update_function_configuration", side_effect=complete_then_change):
+      with self.assertRaisesRegex(RuntimeError, "changed during its configuration update"):
         deployer.apply(action, name)
     self.assertEqual([], self.lambda_client.code_updates)
