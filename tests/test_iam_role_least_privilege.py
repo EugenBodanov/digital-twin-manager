@@ -266,30 +266,33 @@ class IamRoleLeastPrivilegeTests(unittest.TestCase):
             f"{deployer_class.__name__} trust policy is not bound to the account",
           )
 
-  def test_event_checker_has_no_federation_support(self) -> None:
+  def test_event_checker_permissions_for_local_and_federated_actions(self) -> None:
     EventCheckerIamRoleDeployer().deploy()
 
-    for call in globals.aws_iam_client.put_role_policy_calls:
-      for statement in _all_statements(call["PolicyDocument"]):
-        actions = _actions(statement)
-        self.assertNotIn("ssm:GetParameter", actions)
+    statements = _all_statements(globals.aws_iam_client.put_role_policy_calls[0]["PolicyDocument"])
 
-        for action in ("states:StartExecution", "lambda:InvokeFunction"):
-          if action not in actions:
-            continue
+    def grants(action):
+      return {
+        resource for statement in statements
+        if statement["Effect"] == "Allow" and action in _actions(statement)
+        for resource in _resources(statement)
+      }
 
-          for resource in _resources(statement):
-            self.assertNotEqual(resource, "*")
-            self.assertTrue(
-              resource.startswith("arn:aws:states:")
-              or resource.startswith("arn:aws:lambda:"),
-              f"unexpected resource {resource} for {action}",
-            )
-            self.assertIn(
-              "dtc-y-01",
-              resource,
-              f"{action} resource {resource} is not scoped to this twin",
-            )
+    registry = "arn:aws:ssm:eu-west-1:123456789012:parameter/dtc-y-01/event-registry"
+    functions = "arn:aws:lambda:eu-west-1:123456789012:function"
+    self.assertEqual(grants("ssm:GetParameter"), {
+      f"{registry}/high-temperature-callback", f"{registry}/another-callback", f"{registry}/no-feedback-callback",
+    })
+    self.assertEqual(grants("lambda:GetFunction"), {f"{functions}:dtc-y-01-*"})
+    self.assertEqual(grants("lambda:InvokeFunction"), {f"{functions}:dtc-y-01-*", f"{functions}:*_pipeline"})
+    self.assertEqual(grants("states:StartExecution"), {"arn:aws:states:eu-west-1:123456789012:stateMachine:dtc-y-01-lambda-chain"})
+
+  def test_event_checker_without_events_needs_no_federation_permissions(self) -> None:
+    globals.config_events = []
+    EventCheckerIamRoleDeployer().deploy()
+    statements = _all_statements(globals.aws_iam_client.put_role_policy_calls[0]["PolicyDocument"])
+    self.assertFalse(any("ssm:GetParameter" in _actions(s) for s in statements))
+    self.assertFalse(any(r.endswith("_pipeline") for s in statements for r in _resources(s)))
 
   def test_event_feedback_topics_are_enumerated_from_config_events(self) -> None:
     EventFeedbackIamRoleDeployer().deploy()

@@ -12,6 +12,12 @@ def lambda_function_arn(function_name):
   return f"arn:aws:lambda:{region}:{account_id}:function:{function_name}"
 
 
+def event_registry_arn():
+  region = globals.aws_lambda_client.meta.region_name
+  account_id = globals.aws_sts_client.get_caller_identity()["Account"]
+  return f"arn:aws:ssm:{region}:{account_id}:parameter{globals.ssm_registry_prefix()}"
+
+
 def iot_rule_arn(rule_name):
   region = globals.aws_iot_client.meta.region_name
   account_id = globals.aws_sts_client.get_caller_identity()["Account"]

@@ -23,7 +23,7 @@ class EventCheckerIamRoleDeployer(Deployer):
     workspace_name = globals.twinmaker_workspace_name()
     workspace_arn = aws_arns.twinmaker_workspace_arn(workspace_name)
     digital_twin_name = globals.config["digital_twin_name"]
-    return {
+    document = {
       "Version": "2012-10-17",
       "Statement": [
         {
@@ -63,6 +63,22 @@ class EventCheckerIamRoleDeployer(Deployer):
         },
       ],
     }
+    event_names = sorted({event["action"]["functionName"] for event in globals.config_events})
+    if event_names:
+      registry = aws_arns.event_registry_arn()
+      document["Statement"].extend([
+        {
+          "Effect": "Allow",
+          "Action": "ssm:GetParameter",
+          "Resource": [f"{registry}/{name}" for name in event_names],
+        },
+        {
+          "Effect": "Allow",
+          "Action": "lambda:InvokeFunction",
+          "Resource": aws_arns.lambda_function_arn("*_pipeline"),
+        },
+      ])
+    return document
 
   def _current_policy_document(self, role_name):
     try:

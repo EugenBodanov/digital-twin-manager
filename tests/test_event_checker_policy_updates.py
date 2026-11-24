@@ -151,6 +151,15 @@ class EventCheckerPolicyUpdateTests(ManagedLambdaFixture):
     self.assertEqual([self.role_name], self.iam.created_roles)
     self.assertEqual("NO_CHANGE", self.deployer.plan()[0]["action"])
 
+  def test_existing_role_gains_federation_access_in_place(self):
+    original = self.deploy_current()
+    globals.config_events = [self.event]
+    action = self.single_action(self.deployer.plan(), "UPDATE")
+    self.deployer.apply(action, self.role_name)
+    self.assertEqual(original, self.iam.roles[self.role_name])
+    self.assertEqual([("put_role_policy", self.role_name, POLICY_NAME)], self.iam.mutations)
+    self.single_action(self.deployer.plan(), "NO_CHANGE")
+
   def test_matching_url_encoded_policy_needs_no_update(self):
     self.deploy_current()
     self.iam.encoded_documents = True
