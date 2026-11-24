@@ -161,8 +161,8 @@ class ManagedLambdaClient:
             for key, value in request.items()
             if key not in ("FunctionName", "RevisionId")
           })
-        if operation == "code":
-          configuration["RevisionId"] = client._revision()
+        # Lambda can issue a new revision when the asynchronous update completes.
+        configuration["RevisionId"] = client._revision()
         configuration["LastUpdateStatus"] = "Successful"
         client.finished_updates += 1
 
@@ -399,6 +399,18 @@ class ManagedLambdaRegressionTests(ManagedLambdaFixture):
     self.assertEqual(original_hash, self.lambda_client.functions[name]["CodeSha256"])
     self.assertEqual("31", self.lambda_client.functions[name]["Environment"]["Variables"]["HOT_STORAGE_SIZE_IN_DAYS"])
     self.assert_updated_without_replacement(name, original_arn, create_count)
+
+  def test_persister_updates_configuration_and_code_in_one_apply(self):
+    deployer, name = self.deploy_core(PersisterLambdaFunctionDeployer)
+    del self.lambda_client.functions[name]["Environment"]["Variables"]["DEBUG"]
+    self.change_source(self.sources["persister"])
+
+    action = self.single_action(deployer.plan(), "UPDATE")
+    deployer.apply(action, name)
+
+    self.assertEqual(action["revision_id"], self.lambda_client.configuration_updates[0]["RevisionId"])
+    self.assertTrue(self.lambda_client.code_updates[0]["RevisionId"])
+    self.single_action(deployer.plan(), "NO_CHANGE")
 
   def test_environment_change_after_plan_rejects_all_apply(self):
     for config_field, folder, layer, deployer_class in (

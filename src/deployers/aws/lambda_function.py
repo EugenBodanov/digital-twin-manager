@@ -15,6 +15,11 @@ from deployers.aws.core.plan_actions import plan_action
 
 
 CONFIGURATION_FIELDS = ("Runtime", "Handler", "Role", "Timeout", "MemorySize", "Environment")
+CONFIGURATION_UPDATE_FIELDS = set(CONFIGURATION_FIELDS) | {
+  "ConfigSha256", "LastModified", "RevisionId", "RuntimeVersionConfig",
+  "State", "StateReason", "StateReasonCode",
+  "LastUpdateStatus", "LastUpdateStatusReason", "LastUpdateStatusReasonCode",
+}
 ROLE_PROPAGATION_MAX_ATTEMPTS = 10
 ROLE_PROPAGATION_MAX_DELAY_SECONDS = 8
 
@@ -69,6 +74,19 @@ def aws_snapshot(configuration):
     **managed_configuration(configuration),
     **{name: configuration.get(name) for name in ("CodeSha256", "RevisionId", "State", "LastUpdateStatus")},
   }
+
+
+def _preserved_configuration(configuration):
+  """Code and settings that must survive an update to the managed fields."""
+  fields = {key: value for key, value in configuration.items() if key not in CONFIGURATION_UPDATE_FIELDS}
+  vpc = configuration.get("VpcConfig", {})
+  fields["VpcConfig"] = {
+    **vpc,
+    "SubnetIds": sorted(vpc.get("SubnetIds", [])),
+    "SecurityGroupIds": sorted(vpc.get("SecurityGroupIds", [])),
+  }
+  fields["SnapStart"] = configuration.get("SnapStart", {}).get("ApplyOn", "None")
+  return fields
 
 
 def plan_lambda(definition, previous_function_name, *, resource=None, resource_type="lambda_function"):
@@ -207,14 +225,14 @@ def update_lambda(action, definition):
     response = globals.aws_lambda_client.update_function_configuration(
       FunctionName=definition.function_name, RevisionId=revision_id, **desired,
     )
-    # Use the revision returned by our update, never adopt another writer's revision.
-    revision_id = response.get("RevisionId")
     updated = wait_for_update(definition.function_name)
+    # Lambda can issue a new revision when an InProgress update completes.
+    revision_id = updated.get("RevisionId")
     if (
-      managed_configuration(updated) != desired
-      or updated.get("CodeSha256") != actual.get("CodeSha256")
-      or not revision_id
-      or updated.get("RevisionId") != revision_id
+      not revision_id
+      or managed_configuration(updated) != desired
+      or _preserved_configuration(updated) != _preserved_configuration(actual)
+      or (response.get("LastUpdateStatus") == "Successful" and response.get("RevisionId") != revision_id)
     ):
       raise RuntimeError(f"Lambda {definition.function_name} changed during its configuration update. Run 'plan' again.")
 
