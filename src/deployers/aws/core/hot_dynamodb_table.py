@@ -9,6 +9,10 @@ import globals
 import util
 from botocore.exceptions import ClientError
 
+PITR_MAX_ATTEMPTS = 14
+PITR_MAX_DELAY_SECONDS = 30
+
+
 class HotDynamodbTableDeployer(Deployer):
   def log(self, message):
     print(f"Core: {message}")
@@ -64,10 +68,24 @@ class HotDynamodbTableDeployer(Deployer):
     waiter = globals.aws_dynamodb_client.get_waiter('table_exists')
     waiter.wait(TableName=table_name)
 
-    globals.aws_dynamodb_client.update_continuous_backups(
-      TableName=table_name,
-      PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True},
-    )
+    # A table can be ACTIVE while DynamoDB is still initializing its continuous backups.
+    for attempt in range(1, PITR_MAX_ATTEMPTS + 1):
+      try:
+        globals.aws_dynamodb_client.update_continuous_backups(
+          TableName=table_name,
+          PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True},
+        )
+        break
+      except ClientError as error:
+        code = error.response.get("Error", {}).get("Code")
+        if code != "ContinuousBackupsUnavailableException" or attempt == PITR_MAX_ATTEMPTS:
+          raise
+        delay = min(2 ** attempt, PITR_MAX_DELAY_SECONDS)
+        self.log(
+          f"Continuous backups for {table_name} are not ready. "
+          f"Retrying in {delay}s ({attempt + 1}/{PITR_MAX_ATTEMPTS})."
+        )
+        time.sleep(delay)
 
     self.log(f"Created DynamoDb table: {table_name}")
 

@@ -5,6 +5,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import call, patch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +69,7 @@ class RecordingDynamodbClient:
     self.create_table_calls = []
     self.update_continuous_backups_calls = []
     self.call_order = []
+    self.pitr_errors = []
 
   def create_table(self, **kwargs):
     self.create_table_calls.append(kwargs)
@@ -80,6 +82,8 @@ class RecordingDynamodbClient:
   def update_continuous_backups(self, **kwargs):
     self.update_continuous_backups_calls.append(kwargs)
     self.call_order.append("update_continuous_backups")
+    if self.pitr_errors:
+      raise self.pitr_errors.pop(0)
 
 
 class StorageHardeningTests(unittest.TestCase):
@@ -148,8 +152,10 @@ class StorageHardeningTests(unittest.TestCase):
     # CORS is still applied, after the hardening calls.
     self.assertEqual(1, len(globals.aws_s3_client.put_bucket_cors_calls))
 
-  def test_hot_table_enables_point_in_time_recovery_after_active(self) -> None:
+  @patch("time.sleep")
+  def test_hot_table_enables_point_in_time_recovery_after_active(self, sleep) -> None:
     HotDynamodbTableDeployer().deploy()
+    sleep.assert_not_called()
 
     client = globals.aws_dynamodb_client
     self.assertEqual(1, len(client.update_continuous_backups_calls))
@@ -163,6 +169,58 @@ class StorageHardeningTests(unittest.TestCase):
       ["create_table", "get_waiter:table_exists", "update_continuous_backups"],
       client.call_order,
     )
+
+  @patch("time.sleep")
+  def test_hot_table_retries_pitr_for_the_planned_table(self, sleep) -> None:
+    client = globals.aws_dynamodb_client
+    pending = ClientError(
+      {"Error": {"Code": "ContinuousBackupsUnavailableException"}}, "UpdateContinuousBackups"
+    )
+    client.pitr_errors = [pending, pending]
+
+    HotDynamodbTableDeployer().apply({"action": "DEPLOY"}, "planned-hot-table")
+
+    expected = {
+      "TableName": "planned-hot-table",
+      "PointInTimeRecoverySpecification": {"PointInTimeRecoveryEnabled": True},
+    }
+    self.assertEqual([expected] * 3, client.update_continuous_backups_calls)
+    self.assertEqual(
+      ["create_table", "get_waiter:table_exists"] + ["update_continuous_backups"] * 3, client.call_order
+    )
+    self.assertEqual([call(2), call(4)], sleep.call_args_list)
+
+  @patch("time.sleep")
+  def test_hot_table_propagates_the_last_pitr_error_after_five_minutes_of_backoff(self, sleep) -> None:
+    client = globals.aws_dynamodb_client
+    pending = ClientError(
+      {"Error": {"Code": "ContinuousBackupsUnavailableException"}}, "UpdateContinuousBackups"
+    )
+    delays = [2, 4, 8, 16] + [30] * 9
+    last_error = ClientError(
+      {"Error": {"Code": "ContinuousBackupsUnavailableException", "Message": "Still starting"}}, "UpdateContinuousBackups"
+    )
+    client.pitr_errors = [pending] * len(delays) + [last_error]
+
+    with self.assertRaises(ClientError) as caught:
+      HotDynamodbTableDeployer().deploy()
+
+    self.assertIs(caught.exception, last_error)
+    self.assertEqual(len(delays) + 1, len(client.update_continuous_backups_calls))
+    self.assertEqual([call(delay) for delay in delays], sleep.call_args_list)
+
+  @patch("time.sleep")
+  def test_hot_table_propagates_pitr_access_denied_immediately(self, sleep) -> None:
+    client = globals.aws_dynamodb_client
+    denied = ClientError({"Error": {"Code": "AccessDeniedException"}}, "UpdateContinuousBackups")
+    client.pitr_errors = [denied]
+
+    with self.assertRaises(ClientError) as caught:
+      HotDynamodbTableDeployer().deploy()
+
+    self.assertIs(caught.exception, denied)
+    self.assertEqual(1, len(client.update_continuous_backups_calls))
+    sleep.assert_not_called()
 
 
 if __name__ == "__main__":
